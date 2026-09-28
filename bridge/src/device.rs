@@ -105,3 +105,17 @@ enum Answer {
 fn invalid() -> io::Error {
     io::ErrorKind::InvalidData.into()
 }
+
+impl<T: Read + Write> crate::runtime::Keys for Device<T> {
+    fn next_key(&mut self) -> io::Result<Option<(Position, Edge)>> {
+        Device::next_key(self)
+    }
+
+    fn show(&mut self, leds: [Led; 3]) -> io::Result<()> {
+        Device::show(self, leds)
+    }
+
+    fn flash(&mut self, pos: Position, rgb: Rgb) -> io::Result<()> {
+        Device::flash(self, pos, rgb)
+    }
+}
