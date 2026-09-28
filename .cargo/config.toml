@@ -13,3 +13,4 @@ rustflags = [
 
 [alias]
 probe = "run --release -p firmware --bin io_probe --target thumbv6m-none-eabi"
+keypad = "run --release -p firmware --bin triton --target thumbv6m-none-eabi"

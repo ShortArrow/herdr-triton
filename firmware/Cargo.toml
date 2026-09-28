@@ -9,13 +9,21 @@ name = "io_probe"
 test = false
 bench = false
 
+[[bin]]
+name = "triton"
+test = false
+bench = false
+
 [dependencies]
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 drooling = { version = "0.2", features = ["rp2040"] }
 embedded-hal = "1.0"
+keypad = { path = "../keypad" }
 panic-halt = "0.2"
+protocol = { path = "../protocol" }
 rp2040-boot2 = "0.3"
+rp2040-flash = "0.6"
 rp2040-hal = { version = "0.11", features = ["rt", "critical-section-impl"] }
 smart-leds = "0.4"
 usb-device = "0.3"
