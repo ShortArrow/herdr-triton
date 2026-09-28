@@ -70,3 +70,34 @@ fn a_screen_without_numbered_options_has_none() {
 fn a_prompt_line_that_is_not_an_option_is_not_read_as_one() {
     assert_eq!(parse("❯ check\n❯ 1.5 is not an option\n"), None);
 }
+
+mod location {
+    use bridge::prompt_screen::{location, parse};
+    use serde_json::json;
+
+    #[test]
+    fn names_workspace_pane_and_highlighted_option() {
+        let prompt = parse(" ❯ 1. Yes\n   2. No\n");
+        assert_eq!(
+            location("w1:p2", prompt.as_ref()),
+            json!({"w": "1", "p": "2", "s": 1, "options": ["Yes", "No"]})
+        );
+    }
+
+    #[test]
+    fn keeps_non_numeric_ids_as_herdr_prints_them() {
+        let prompt = parse("   1. Yes\n › 2. No\n");
+        assert_eq!(
+            location("wY:p1", prompt.as_ref()),
+            json!({"w": "Y", "p": "1", "s": 2, "options": ["Yes", "No"]})
+        );
+    }
+
+    #[test]
+    fn without_a_prompt_the_selection_is_null() {
+        assert_eq!(
+            location("w1:p1", None),
+            json!({"w": "1", "p": "1", "s": null, "options": []})
+        );
+    }
+}
