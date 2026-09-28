@@ -1,0 +1,10 @@
+[package]
+name = "protocol"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cobs = { version = "0.3", default-features = false }
+postcard = { version = "1", default-features = false }
+serde = { version = "1", default-features = false, features = ["derive"] }
