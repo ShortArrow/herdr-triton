@@ -5,4 +5,8 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# Same named-pipe naming as herdr, which pins 2.4.
+interprocess = "2.4"
 protocol = { path = "../protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
