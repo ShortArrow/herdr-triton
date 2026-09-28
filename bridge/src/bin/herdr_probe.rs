@@ -64,10 +64,13 @@ fn read_level(client: &Client, level: &str, target: &str, json: bool) -> ExitCod
             other => fail(other),
         },
         "pane_id" => match client.call(&Request::PaneList { workspace_id: target.into() }) {
-            Ok(Response::Panes(panes)) => Some((
-                position::pane_id(&panes),
-                position::pane_json(target, &panes),
-            )),
+            Ok(Response::Panes(panes)) => {
+                let id = position::pane_id(&panes);
+                if let (Err(not_active), false) = (&id, json) {
+                    eprintln!("{}", not_active.message(target));
+                }
+                Some((id.ok(), position::pane_json(target, &panes)))
+            }
             other => fail(other),
         },
         "workspace_id" => match client.call(&Request::WorkspaceList) {

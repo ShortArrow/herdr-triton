@@ -48,7 +48,7 @@ mod select_id {
 
 mod pane {
     use bridge::herdr::wire::Node;
-    use bridge::position::{pane_id, pane_json};
+    use bridge::position::{pane_id, pane_json, NotActive};
     use serde_json::json;
 
     fn panes() -> Vec<Node> {
@@ -60,14 +60,19 @@ mod pane {
 
     #[test]
     fn id_is_the_focused_pane_without_its_prefixes() {
-        assert_eq!(pane_id(&panes()), Some("2".into()));
+        assert_eq!(pane_id(&panes()), Ok("2".into()));
     }
 
     #[test]
-    fn id_is_none_when_no_pane_is_focused() {
+    fn without_a_focused_pane_the_workspace_is_not_active() {
         let mut unfocused = panes();
         unfocused[1].focused = false;
-        assert_eq!(pane_id(&unfocused), None);
+        assert_eq!(pane_id(&unfocused), Err(NotActive));
+    }
+
+    #[test]
+    fn not_active_names_the_workspace_in_its_message() {
+        assert_eq!(NotActive.message("w1"), "w1 is not the active workspace");
     }
 
     #[test]

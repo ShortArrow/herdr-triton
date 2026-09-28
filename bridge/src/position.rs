@@ -25,9 +25,20 @@ pub fn select_id(prompt: Option<&PromptOptions>) -> Option<String> {
     prompt?.highlighted.map(|n| n.to_string())
 }
 
+/// herdr marks a pane focused only in the workspace on screen, so a
+/// workspace without a focused pane is not the active one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotActive;
+
+impl NotActive {
+    pub fn message(self, workspace_id: &str) -> String {
+        format!("{workspace_id} is not the active workspace")
+    }
+}
+
 /// The focused pane's id without its `w…:p` prefix.
-pub fn pane_id(panes: &[Node]) -> Option<String> {
-    focused(panes).map(|p| short_pane(&p.id).to_owned())
+pub fn pane_id(panes: &[Node]) -> Result<String, NotActive> {
+    focused(panes).map(|p| short_pane(&p.id).to_owned()).ok_or(NotActive)
 }
 
 /// `{"w", "p", "panes"}`: the workspace, its focused pane, and every pane.
@@ -35,7 +46,7 @@ pub fn pane_json(workspace_id: &str, panes: &[Node]) -> serde_json::Value {
     let all: Vec<&str> = panes.iter().map(|p| short_pane(&p.id)).collect();
     serde_json::json!({
         "w": short_workspace(workspace_id),
-        "p": pane_id(panes),
+        "p": pane_id(panes).ok(),
         "panes": all,
     })
 }
