@@ -21,7 +21,10 @@ fn focused(mut a: Agent) -> Agent {
 }
 
 fn prompt_keys(confirm: &str, select: &str) -> PromptKeys {
-    PromptKeys { confirm: vec![confirm.into()], select: vec![select.into()] }
+    PromptKeys {
+        confirm: vec![confirm.into()],
+        select: vec![select.into()],
+    }
 }
 
 fn keys() -> AgentKeys {
@@ -39,7 +42,9 @@ fn with(snapshot: Vec<Agent>) -> State {
 }
 
 fn focus(pane: &str) -> Vec<Cmd> {
-    vec![Cmd::Focus { pane_id: pane.into() }]
+    vec![Cmd::Focus {
+        pane_id: pane.into(),
+    }]
 }
 
 fn error(pos: Position) -> Vec<Cmd> {
@@ -50,7 +55,10 @@ fn led(rgb: protocol::Rgb, mode: Mode) -> Led {
     Led { rgb, mode }
 }
 
-const DARK: Led = Led { rgb: OFF, mode: Mode::Off };
+const DARK: Led = Led {
+    rgb: OFF,
+    mode: Mode::Off,
+};
 
 /// Presses `pos` and answers its refresh with `snapshot`.
 fn press_after_refresh(s: &mut State, pos: Position, snapshot: Vec<Agent>) -> Vec<Cmd> {
@@ -67,7 +75,10 @@ fn select(s: &mut State, snapshot: Vec<Agent>) -> Vec<Cmd> {
 }
 
 fn send(pane: &str, key: &str) -> Vec<Cmd> {
-    vec![Cmd::SendKeys { pane_id: pane.into(), keys: vec![key.into()] }]
+    vec![Cmd::SendKeys {
+        pane_id: pane.into(),
+        keys: vec![key.into()],
+    }]
 }
 
 fn send_enter(pane: &str) -> Vec<Cmd> {
@@ -79,7 +90,11 @@ mod snapshot {
 
     #[test]
     fn blocked_agents_queue_in_list_order() {
-        let mut s = with(vec![blocked("b"), agent("x", Status::Working, 1), blocked("a")]);
+        let mut s = with(vec![
+            blocked("b"),
+            agent("x", Status::Working, 1),
+            blocked("a"),
+        ]);
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("b"));
     }
 
@@ -93,7 +108,10 @@ mod snapshot {
     #[test]
     fn an_agent_no_longer_blocked_leaves_the_queue() {
         let mut s = with(vec![blocked("a"), blocked("b")]);
-        s.update(Msg::Snapshot(vec![agent("a", Status::Working, 2), blocked("b")]));
+        s.update(Msg::Snapshot(vec![
+            agent("a", Status::Working, 2),
+            blocked("b"),
+        ]));
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("b"));
     }
 
@@ -107,7 +125,10 @@ mod snapshot {
     #[test]
     fn a_blocked_agent_whose_seq_changed_keeps_its_position() {
         let mut s = with(vec![blocked("a"), blocked("b")]);
-        s.update(Msg::Snapshot(vec![blocked("b"), agent("a", Status::Blocked, 9)]));
+        s.update(Msg::Snapshot(vec![
+            blocked("b"),
+            agent("a", Status::Blocked, 9),
+        ]));
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
     }
 
@@ -139,7 +160,11 @@ mod jump {
 
     #[test]
     fn with_focus_outside_the_queue_focuses_the_head() {
-        let mut s = with(vec![blocked("a"), blocked("b"), focused(agent("x", Status::Idle, 1))]);
+        let mut s = with(vec![
+            blocked("a"),
+            blocked("b"),
+            focused(agent("x", Status::Idle, 1)),
+        ]);
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
     }
 
@@ -182,7 +207,13 @@ mod jump {
         s.update(Msg::KeyDown(Left));
         assert_eq!(
             s.update(Msg::RequestDone { ok: true }),
-            vec![Cmd::Flash { pos: Left, rgb: WHITE }, Cmd::Poll]
+            vec![
+                Cmd::Flash {
+                    pos: Left,
+                    rgb: WHITE
+                },
+                Cmd::Poll
+            ]
         );
     }
 
@@ -192,7 +223,13 @@ mod jump {
         s.update(Msg::KeyDown(Left));
         assert_eq!(
             s.update(Msg::RequestDone { ok: false }),
-            vec![Cmd::Flash { pos: Left, rgb: RED }, Cmd::Poll]
+            vec![
+                Cmd::Flash {
+                    pos: Left,
+                    rgb: RED
+                },
+                Cmd::Poll
+            ]
         );
     }
 }
@@ -203,7 +240,10 @@ mod approve {
     #[test]
     fn refreshes_then_sends_the_agents_keys_to_the_focused_blocked_pane() {
         let mut s = with(vec![]);
-        assert_eq!(approve(&mut s, vec![blocked("a"), focused(blocked("b"))]), send_enter("b"));
+        assert_eq!(
+            approve(&mut s, vec![blocked("a"), focused(blocked("b"))]),
+            send_enter("b")
+        );
     }
 
     #[test]
@@ -217,14 +257,20 @@ mod approve {
     #[test]
     fn decides_on_the_refreshed_snapshot_not_the_previous_one() {
         let mut s = with(vec![focused(blocked("a"))]);
-        assert_eq!(approve(&mut s, vec![agent("a", Status::Working, 2)]), error(Middle));
+        assert_eq!(
+            approve(&mut s, vec![agent("a", Status::Working, 2)]),
+            error(Middle)
+        );
     }
 
     #[test]
     fn with_focus_outside_the_queue_flashes_an_error() {
         let mut s = with(vec![]);
         assert_eq!(
-            approve(&mut s, vec![blocked("a"), focused(agent("x", Status::Idle, 1))]),
+            approve(
+                &mut s,
+                vec![blocked("a"), focused(agent("x", Status::Idle, 1))]
+            ),
             error(Middle)
         );
     }
@@ -248,7 +294,10 @@ mod approve {
     #[test]
     fn twice_on_the_same_prompt_sends_once() {
         let mut s = with(vec![]);
-        assert_eq!(approve(&mut s, vec![focused(blocked("a"))]), send_enter("a"));
+        assert_eq!(
+            approve(&mut s, vec![focused(blocked("a"))]),
+            send_enter("a")
+        );
         s.update(Msg::RequestDone { ok: true });
         assert_eq!(approve(&mut s, vec![focused(blocked("a"))]), error(Middle));
     }
@@ -268,7 +317,10 @@ mod approve {
         approve(&mut s, vec![focused(blocked("a"))]);
         s.update(Msg::RequestDone { ok: true });
         s.update(Msg::Snapshot(vec![]));
-        assert_eq!(approve(&mut s, vec![focused(blocked("a"))]), send_enter("a"));
+        assert_eq!(
+            approve(&mut s, vec![focused(blocked("a"))]),
+            send_enter("a")
+        );
     }
 
     #[test]
@@ -284,7 +336,13 @@ mod approve {
         approve(&mut s, vec![focused(blocked("a"))]);
         assert_eq!(
             s.update(Msg::RequestDone { ok: true }),
-            vec![Cmd::Flash { pos: Middle, rgb: WHITE }, Cmd::Poll]
+            vec![
+                Cmd::Flash {
+                    pos: Middle,
+                    rgb: WHITE
+                },
+                Cmd::Poll
+            ]
         );
     }
 
@@ -293,7 +351,10 @@ mod approve {
         let mut s = with(vec![]);
         approve(&mut s, vec![focused(blocked("a"))]);
         s.update(Msg::RequestDone { ok: false });
-        assert_eq!(approve(&mut s, vec![focused(blocked("a"))]), send_enter("a"));
+        assert_eq!(
+            approve(&mut s, vec![focused(blocked("a"))]),
+            send_enter("a")
+        );
     }
 }
 
@@ -303,7 +364,10 @@ mod select {
     #[test]
     fn refreshes_then_sends_the_agents_select_keys_to_the_focused_blocked_pane() {
         let mut s = with(vec![]);
-        assert_eq!(select(&mut s, vec![blocked("a"), focused(blocked("b"))]), send("b", "down"));
+        assert_eq!(
+            select(&mut s, vec![blocked("a"), focused(blocked("b"))]),
+            send("b", "down")
+        );
     }
 
     #[test]
@@ -318,7 +382,10 @@ mod select {
     fn with_focus_outside_the_queue_flashes_an_error() {
         let mut s = with(vec![]);
         assert_eq!(
-            select(&mut s, vec![blocked("a"), focused(agent("x", Status::Idle, 1))]),
+            select(
+                &mut s,
+                vec![blocked("a"), focused(agent("x", Status::Idle, 1))]
+            ),
             error(Right)
         );
     }
@@ -334,11 +401,20 @@ mod select {
     #[test]
     fn can_be_repeated_and_leaves_approve_available() {
         let mut s = with(vec![]);
-        assert_eq!(select(&mut s, vec![focused(blocked("a"))]), send("a", "down"));
+        assert_eq!(
+            select(&mut s, vec![focused(blocked("a"))]),
+            send("a", "down")
+        );
         s.update(Msg::RequestDone { ok: true });
-        assert_eq!(select(&mut s, vec![focused(blocked("a"))]), send("a", "down"));
+        assert_eq!(
+            select(&mut s, vec![focused(blocked("a"))]),
+            send("a", "down")
+        );
         s.update(Msg::RequestDone { ok: true });
-        assert_eq!(approve(&mut s, vec![focused(blocked("a"))]), send_enter("a"));
+        assert_eq!(
+            approve(&mut s, vec![focused(blocked("a"))]),
+            send_enter("a")
+        );
     }
 
     #[test]
@@ -362,7 +438,13 @@ mod select {
         select(&mut s, vec![focused(blocked("a"))]);
         assert_eq!(
             s.update(Msg::RequestDone { ok: true }),
-            vec![Cmd::Flash { pos: Right, rgb: WHITE }, Cmd::Poll]
+            vec![
+                Cmd::Flash {
+                    pos: Right,
+                    rgb: WHITE
+                },
+                Cmd::Poll
+            ]
         );
     }
 }
@@ -426,7 +508,10 @@ mod frame {
     #[test]
     fn approve_is_green_and_select_blue_when_the_focused_pane_is_approvable() {
         let frame = with(vec![focused(blocked("a"))]).frame();
-        assert_eq!(frame[1..], [led(GREEN, Mode::Solid), led(BLUE, Mode::Solid)]);
+        assert_eq!(
+            frame[1..],
+            [led(GREEN, Mode::Solid), led(BLUE, Mode::Solid)]
+        );
     }
 
     #[test]

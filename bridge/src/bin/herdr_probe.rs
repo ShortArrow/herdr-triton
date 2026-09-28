@@ -8,17 +8,23 @@
 //! pane, and the highlighted option of its prompt.
 
 use bridge::herdr::client::Client;
-use bridge::prompt_screen;
 use bridge::herdr::socket_path::{resolve, Platform};
 use bridge::herdr::wire::{is_supported, Request, Response};
+use bridge::{position, prompt_screen};
 
 fn main() {
-    let path = resolve(|k| std::env::var(k).ok(), Platform::current(), &std::env::temp_dir());
+    let path = resolve(
+        |k| std::env::var(k).ok(),
+        Platform::current(),
+        &std::env::temp_dir(),
+    );
     println!("socket: {}", path.display());
     let client = Client::new(path);
 
     match client.call(&Request::Ping) {
-        Ok(Response::Pong { version }) => println!("version: {version} (supported: {})", is_supported(&version)),
+        Ok(Response::Pong { version }) => {
+            println!("version: {version} (supported: {})", is_supported(&version))
+        }
         other => {
             println!("ping failed: {other:?}");
             std::process::exit(1);
@@ -45,20 +51,27 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [cmd, target, keys @ ..] if cmd == "send" && !keys.is_empty() => {
-            let request = Request::AgentSendKeys { target: target.clone(), keys: keys.to_vec() };
+            let request = Request::AgentSendKeys {
+                target: target.clone(),
+                keys: keys.to_vec(),
+            };
             println!("send_keys: {:?}", client.call(&request));
         }
         [cmd, target] if cmd == "read" => {
-            match client.call(&Request::AgentRead { target: target.clone() }) {
+            match client.call(&Request::AgentRead {
+                target: target.clone(),
+            }) {
                 Ok(Response::Screen(text)) => {
                     let prompt = prompt_screen::parse(&text);
-                    println!("{}", prompt_screen::location(target, prompt.as_ref()));
+                    println!("{}", position::select_json(target, prompt.as_ref()));
                 }
                 other => println!("read: {other:?}"),
             }
         }
         [cmd, target] if cmd == "focus" => {
-            let request = Request::AgentFocus { target: target.clone() };
+            let request = Request::AgentFocus {
+                target: target.clone(),
+            };
             println!("focus: {:?}", client.call(&request));
         }
         _ => {}

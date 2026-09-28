@@ -25,7 +25,10 @@ const CLAUDE_SCREEN: &str = "\
 
 #[test]
 fn reads_the_claude_prompt_below_an_earlier_numbered_list() {
-    assert_eq!(parse(CLAUDE_SCREEN), options(&[(1, "Yes"), (2, "No")], Some(1)));
+    assert_eq!(
+        parse(CLAUDE_SCREEN),
+        options(&[(1, "Yes"), (2, "No")], Some(1))
+    );
 }
 
 #[test]
@@ -33,7 +36,10 @@ fn reads_a_highlight_on_a_later_option() {
     let screen = " Do you want to proceed?\n   1. Yes\n ❯ 2. Yes, and don't ask again\n   3. No\n";
     assert_eq!(
         parse(screen),
-        options(&[(1, "Yes"), (2, "Yes, and don't ask again"), (3, "No")], Some(2))
+        options(
+            &[(1, "Yes"), (2, "Yes, and don't ask again"), (3, "No")],
+            Some(2)
+        )
     );
 }
 
@@ -58,7 +64,10 @@ fn reads_the_codex_marker() {
 
 #[test]
 fn a_list_without_a_marker_has_no_highlight() {
-    assert_eq!(parse("  1. first\n  2. second\n"), options(&[(1, "first"), (2, "second")], None));
+    assert_eq!(
+        parse("  1. first\n  2. second\n"),
+        options(&[(1, "first"), (2, "second")], None)
+    );
 }
 
 #[test]
@@ -69,35 +78,4 @@ fn a_screen_without_numbered_options_has_none() {
 #[test]
 fn a_prompt_line_that_is_not_an_option_is_not_read_as_one() {
     assert_eq!(parse("❯ check\n❯ 1.5 is not an option\n"), None);
-}
-
-mod location {
-    use bridge::prompt_screen::{location, parse};
-    use serde_json::json;
-
-    #[test]
-    fn names_workspace_pane_and_highlighted_option() {
-        let prompt = parse(" ❯ 1. Yes\n   2. No\n");
-        assert_eq!(
-            location("w1:p2", prompt.as_ref()),
-            json!({"w": "1", "p": "2", "s": 1, "options": ["Yes", "No"]})
-        );
-    }
-
-    #[test]
-    fn keeps_non_numeric_ids_as_herdr_prints_them() {
-        let prompt = parse("   1. Yes\n › 2. No\n");
-        assert_eq!(
-            location("wY:p1", prompt.as_ref()),
-            json!({"w": "Y", "p": "1", "s": 2, "options": ["Yes", "No"]})
-        );
-    }
-
-    #[test]
-    fn without_a_prompt_the_selection_is_null() {
-        assert_eq!(
-            location("w1:p1", None),
-            json!({"w": "1", "p": "1", "s": null, "options": []})
-        );
-    }
 }

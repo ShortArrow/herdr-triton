@@ -28,7 +28,11 @@ impl Platform {
 /// herdr's API socket path, from `HERDR_SOCKET_PATH`, then `HERDR_SESSION`,
 /// then the default session. `env` looks up environment variables and
 /// `temp_dir` is the last-resort base, as in herdr.
-pub fn resolve(env: impl Fn(&str) -> Option<String>, platform: Platform, temp_dir: &Path) -> PathBuf {
+pub fn resolve(
+    env: impl Fn(&str) -> Option<String>,
+    platform: Platform,
+    temp_dir: &Path,
+) -> PathBuf {
     if let Some(path) = env("HERDR_SOCKET_PATH") {
         return PathBuf::from(path);
     }
@@ -55,17 +59,26 @@ fn is_valid_session_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-fn config_dir(env: &impl Fn(&str) -> Option<String>, platform: Platform, temp_dir: &Path) -> PathBuf {
+fn config_dir(
+    env: &impl Fn(&str) -> Option<String>,
+    platform: Platform,
+    temp_dir: &Path,
+) -> PathBuf {
     if let Some(dir) = env("XDG_CONFIG_HOME") {
         return PathBuf::from(dir).join(APP_DIR);
     }
-    let home_config = || env("HOME").map(|home| PathBuf::from(home).join(format!(".config/{APP_DIR}")));
+    let home_config =
+        || env("HOME").map(|home| PathBuf::from(home).join(format!(".config/{APP_DIR}")));
     let platform_dir = match platform {
         Platform::Windows => env("APPDATA")
             .map(|dir| PathBuf::from(dir).join(APP_DIR))
             .or_else(|| {
-                env("USERPROFILE")
-                    .map(|profile| PathBuf::from(profile).join("AppData").join("Roaming").join(APP_DIR))
+                env("USERPROFILE").map(|profile| {
+                    PathBuf::from(profile)
+                        .join("AppData")
+                        .join("Roaming")
+                        .join(APP_DIR)
+                })
             })
             .or_else(home_config),
         Platform::Unix => home_config(),

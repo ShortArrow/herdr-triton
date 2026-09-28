@@ -4,7 +4,10 @@ use serde_json::{json, Value};
 
 fn encoded(request: &Request) -> Value {
     let line = encode_request("r1", request);
-    assert!(line.ends_with('\n') && !line[..line.len() - 1].contains('\n'), "{line:?}");
+    assert!(
+        line.ends_with('\n') && !line[..line.len() - 1].contains('\n'),
+        "{line:?}"
+    );
     serde_json::from_str(&line).unwrap()
 }
 
@@ -13,7 +16,10 @@ mod requests {
 
     #[test]
     fn ping() {
-        assert_eq!(encoded(&Request::Ping), json!({"id": "r1", "method": "ping", "params": {}}));
+        assert_eq!(
+            encoded(&Request::Ping),
+            json!({"id": "r1", "method": "ping", "params": {}})
+        );
     }
 
     #[test]
@@ -27,7 +33,9 @@ mod requests {
     #[test]
     fn agent_focus() {
         assert_eq!(
-            encoded(&Request::AgentFocus { target: "w1:p2".into() }),
+            encoded(&Request::AgentFocus {
+                target: "w1:p2".into()
+            }),
             json!({"id": "r1", "method": "agent.focus", "params": {"target": "w1:p2"}})
         );
     }
@@ -35,7 +43,9 @@ mod requests {
     #[test]
     fn agent_read_asks_for_the_visible_screen_as_plain_text() {
         assert_eq!(
-            encoded(&Request::AgentRead { target: "w1:p2".into() }),
+            encoded(&Request::AgentRead {
+                target: "w1:p2".into()
+            }),
             json!({"id": "r1", "method": "agent.read", "params": {"target": "w1:p2", "source": "visible"}})
         );
     }
@@ -43,7 +53,10 @@ mod requests {
     #[test]
     fn agent_send_keys() {
         assert_eq!(
-            encoded(&Request::AgentSendKeys { target: "w1:p2".into(), keys: vec!["down".into()] }),
+            encoded(&Request::AgentSendKeys {
+                target: "w1:p2".into(),
+                keys: vec!["down".into()]
+            }),
             json!({"id": "r1", "method": "agent.send_keys", "params": {"target": "w1:p2", "keys": ["down"]}})
         );
     }
@@ -58,18 +71,27 @@ mod responses {
 
     #[test]
     fn pong() {
-        let got = decode(json!({"id": "r1", "result": {"type": "pong", "version": "0.9.1", "protocol": 3}}));
-        assert_eq!(got, Ok(Response::Pong { version: "0.9.1".into() }));
+        let got = decode(
+            json!({"id": "r1", "result": {"type": "pong", "version": "0.9.1", "protocol": 3}}),
+        );
+        assert_eq!(
+            got,
+            Ok(Response::Pong {
+                version: "0.9.1".into()
+            })
+        );
     }
 
     #[test]
     fn agent_list_keeps_the_fields_the_bridge_uses_and_ignores_the_rest() {
-        let got = decode(json!({"id": "r1", "result": {"type": "agent_list", "agents": [
-            {"terminal_id": "t1", "agent": "claude", "agent_status": "blocked", "workspace_id": "w1",
-             "tab_id": "w1:t1", "pane_id": "w1:p1", "focused": true, "state_change_seq": 7, "revision": 3},
-            {"terminal_id": "t2", "agent_status": "working", "workspace_id": "w1",
-             "tab_id": "w1:t1", "pane_id": "w1:p2", "focused": false, "revision": 1}
-        ]}}));
+        let got = decode(
+            json!({"id": "r1", "result": {"type": "agent_list", "agents": [
+                {"terminal_id": "t1", "agent": "claude", "agent_status": "blocked", "workspace_id": "w1",
+                 "tab_id": "w1:t1", "pane_id": "w1:p1", "focused": true, "state_change_seq": 7, "revision": 3},
+                {"terminal_id": "t2", "agent_status": "working", "workspace_id": "w1",
+                 "tab_id": "w1:t1", "pane_id": "w1:p2", "focused": false, "revision": 1}
+            ]}}),
+        );
         assert_eq!(
             got,
             Ok(Response::Agents(vec![
@@ -100,10 +122,14 @@ mod responses {
             ("done", Status::Done),
             ("unknown", Status::Unknown),
         ] {
-            let got = decode(json!({"id": "r1", "result": {"type": "agent_list", "agents": [
-                {"agent_status": wire, "pane_id": "p", "focused": false}
-            ]}}));
-            let Ok(Response::Agents(agents)) = got else { panic!("{wire}: {got:?}") };
+            let got = decode(
+                json!({"id": "r1", "result": {"type": "agent_list", "agents": [
+                    {"agent_status": wire, "pane_id": "p", "focused": false}
+                ]}}),
+            );
+            let Ok(Response::Agents(agents)) = got else {
+                panic!("{wire}: {got:?}")
+            };
             assert_eq!(agents[0].status, status, "{wire}");
         }
     }
@@ -137,15 +163,23 @@ mod responses {
 
     #[test]
     fn ok() {
-        assert_eq!(decode(json!({"id": "r1", "result": {"type": "ok"}})), Ok(Response::Ok));
+        assert_eq!(
+            decode(json!({"id": "r1", "result": {"type": "ok"}})),
+            Ok(Response::Ok)
+        );
     }
 
     #[test]
     fn error() {
-        let got = decode(json!({"id": "r1", "error": {"code": "agent_not_found", "message": "no agent w9"}}));
+        let got = decode(
+            json!({"id": "r1", "error": {"code": "agent_not_found", "message": "no agent w9"}}),
+        );
         assert_eq!(
             got,
-            Ok(Response::Error { code: "agent_not_found".into(), message: "no agent w9".into() })
+            Ok(Response::Error {
+                code: "agent_not_found".into(),
+                message: "no agent w9".into()
+            })
         );
     }
 
@@ -157,8 +191,17 @@ mod responses {
 
     #[test]
     fn a_line_that_is_not_an_envelope_is_malformed() {
-        for line in ["", "not json", "{}", r#"{"id":"r1"}"#, r#"{"id":"r1","result":{}}"#] {
-            assert!(matches!(decode_response(line), Err(WireError::Malformed(_))), "{line:?}");
+        for line in [
+            "",
+            "not json",
+            "{}",
+            r#"{"id":"r1"}"#,
+            r#"{"id":"r1","result":{}}"#,
+        ] {
+            assert!(
+                matches!(decode_response(line), Err(WireError::Malformed(_))),
+                "{line:?}"
+            );
         }
     }
 }

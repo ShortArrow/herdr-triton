@@ -11,23 +11,35 @@ use crate::state::{Agent, Status};
 pub enum Request {
     Ping,
     AgentList,
-    AgentFocus { target: String },
-    AgentSendKeys { target: String, keys: Vec<String> },
+    AgentFocus {
+        target: String,
+    },
+    AgentSendKeys {
+        target: String,
+        keys: Vec<String>,
+    },
     /// The visible screen, as plain text.
-    AgentRead { target: String },
+    AgentRead {
+        target: String,
+    },
 }
 
 /// The responses the bridge understands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Response {
-    Pong { version: String },
+    Pong {
+        version: String,
+    },
     Agents(Vec<Agent>),
     /// The reply to `agent.focus`: the agent now focused.
     Agent(Agent),
     /// The reply to `agent.read`: the screen text.
     Screen(String),
     Ok,
-    Error { code: String, message: String },
+    Error {
+        code: String,
+        message: String,
+    },
 }
 
 /// Why a response line could not be read.
@@ -51,7 +63,10 @@ pub fn encode_request(id: &str, request: &Request) -> String {
         Request::AgentSendKeys { target, keys } => {
             ("agent.send_keys", json!({ "target": target, "keys": keys }))
         }
-        Request::AgentRead { target } => ("agent.read", json!({ "target": target, "source": "visible" })),
+        Request::AgentRead { target } => (
+            "agent.read",
+            json!({ "target": target, "source": "visible" }),
+        ),
     };
     let mut line = json!({ "id": id, "method": method, "params": params }).to_string();
     line.push('\n');
@@ -111,7 +126,9 @@ impl From<KnownResult> for Response {
     fn from(result: KnownResult) -> Self {
         match result {
             KnownResult::Pong { version } => Response::Pong { version },
-            KnownResult::AgentList { agents } => Response::Agents(agents.into_iter().map(Agent::from).collect()),
+            KnownResult::AgentList { agents } => {
+                Response::Agents(agents.into_iter().map(Agent::from).collect())
+            }
             KnownResult::AgentInfo { agent } => Response::Agent(agent.into()),
             KnownResult::PaneRead { read } => Response::Screen(read.text),
             KnownResult::Ok {} => Response::Ok,
@@ -141,16 +158,19 @@ impl From<AgentInfo> for Agent {
 pub fn decode_response(line: &str) -> Result<Response, WireError> {
     let malformed = |e: serde_json::Error| WireError::Malformed(e.to_string());
     match serde_json::from_str::<Envelope>(line).map_err(malformed)? {
-        Envelope::Failure { error } => Ok(Response::Error { code: error.code, message: error.message }),
-        Envelope::Success { result } => {
-            match result.get("type").and_then(Value::as_str) {
-                None => Err(WireError::Malformed("result has no type".into())),
-                Some("pong" | "agent_list" | "agent_info" | "pane_read" | "ok") => {
-                    Ok(serde_json::from_value::<KnownResult>(result).map_err(malformed)?.into())
-                }
-                Some(other) => Err(WireError::Unexpected(other.to_owned())),
+        Envelope::Failure { error } => Ok(Response::Error {
+            code: error.code,
+            message: error.message,
+        }),
+        Envelope::Success { result } => match result.get("type").and_then(Value::as_str) {
+            None => Err(WireError::Malformed("result has no type".into())),
+            Some("pong" | "agent_list" | "agent_info" | "pane_read" | "ok") => {
+                Ok(serde_json::from_value::<KnownResult>(result)
+                    .map_err(malformed)?
+                    .into())
             }
-        }
+            Some(other) => Err(WireError::Unexpected(other.to_owned())),
+        },
     }
 }
 

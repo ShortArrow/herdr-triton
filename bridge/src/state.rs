@@ -42,7 +42,9 @@ pub enum Msg {
     SnapshotFailed,
     KeyDown(Position),
     /// The outcome of the last `Cmd::Focus` or `Cmd::SendKeys`.
-    RequestDone { ok: bool },
+    RequestDone {
+        ok: bool,
+    },
 }
 
 /// Outputs of [`State::update`], executed in order by the runtime.
@@ -60,11 +62,23 @@ pub mod palette {
 
     pub const OFF: Rgb = Rgb { r: 0, g: 0, b: 0 };
     pub const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
-    pub const AMBER: Rgb = Rgb { r: 255, g: 140, b: 0 };
-    pub const REDDISH_AMBER: Rgb = Rgb { r: 255, g: 70, b: 0 };
+    pub const AMBER: Rgb = Rgb {
+        r: 255,
+        g: 140,
+        b: 0,
+    };
+    pub const REDDISH_AMBER: Rgb = Rgb {
+        r: 255,
+        g: 70,
+        b: 0,
+    };
     pub const GREEN: Rgb = Rgb { r: 0, g: 255, b: 0 };
     pub const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };
-    pub const WHITE: Rgb = Rgb { r: 255, g: 255, b: 255 };
+    pub const WHITE: Rgb = Rgb {
+        r: 255,
+        g: 255,
+        b: 255,
+    };
 }
 
 /// The keys that drive an agent's approval prompt.
@@ -175,16 +189,33 @@ impl State {
 
     /// The steady LED output, left to right.
     pub fn frame(&self) -> [Led; 3] {
-        let dark = Led { rgb: palette::OFF, mode: Mode::Off };
-        let solid = |rgb| Led { rgb, mode: Mode::Solid };
+        let dark = Led {
+            rgb: palette::OFF,
+            mode: Mode::Off,
+        };
+        let solid = |rgb| Led {
+            rgb,
+            mode: Mode::Solid,
+        };
         match self.conn {
-            Conn::Disconnected => [Led { rgb: palette::RED, mode: Mode::Blink }; 3],
+            Conn::Disconnected => {
+                [Led {
+                    rgb: palette::RED,
+                    mode: Mode::Blink,
+                }; 3]
+            }
             Conn::Incompatible => [solid(palette::RED); 3],
             Conn::Connected => {
                 let jump = match self.queue.len() {
                     0 => dark,
-                    1 => Led { rgb: palette::AMBER, mode: Mode::Breathe },
-                    _ => Led { rgb: palette::REDDISH_AMBER, mode: Mode::Breathe },
+                    1 => Led {
+                        rgb: palette::AMBER,
+                        mode: Mode::Breathe,
+                    },
+                    _ => Led {
+                        rgb: palette::REDDISH_AMBER,
+                        mode: Mode::Breathe,
+                    },
                 };
                 let (approve, select) = match self.approvable() {
                     Some(_) => (solid(palette::GREEN), solid(palette::BLUE)),
@@ -222,8 +253,11 @@ impl State {
         self.queue = queue;
         self.focused = agents.iter().find(|a| a.focused).map(|a| a.pane_id.clone());
         let queue = &self.queue;
-        self.sent
-            .retain(|(pane, seq)| queue.iter().any(|e| &e.pane_id == pane && e.state_change_seq == *seq));
+        self.sent.retain(|(pane, seq)| {
+            queue
+                .iter()
+                .any(|e| &e.pane_id == pane && e.state_change_seq == *seq)
+        });
     }
 
     /// The entry after the focused one, cycling; the head if focus is elsewhere.
@@ -243,7 +277,10 @@ impl State {
     fn jump(&mut self) -> Vec<Cmd> {
         match self.jump_target() {
             Some(pane_id) => {
-                self.pending = Pending::Request { pos: Position::Left, sent: None };
+                self.pending = Pending::Request {
+                    pos: Position::Left,
+                    sent: None,
+                };
                 vec![Cmd::Focus { pane_id }]
             }
             None => error(Position::Left),
@@ -273,7 +310,10 @@ impl State {
         };
         let pane_id = entry.pane_id.clone();
         let (keys, sent) = match action {
-            PromptAction::Confirm => (keys.confirm.clone(), Some((pane_id.clone(), entry.state_change_seq))),
+            PromptAction::Confirm => (
+                keys.confirm.clone(),
+                Some((pane_id.clone(), entry.state_change_seq)),
+            ),
             PromptAction::Select => (keys.select.clone(), None),
         };
         if let Some(mark) = &sent {
@@ -284,7 +324,8 @@ impl State {
     }
 
     fn finish_request(&mut self, ok: bool) -> Vec<Cmd> {
-        let Pending::Request { pos, sent } = std::mem::replace(&mut self.pending, Pending::None) else {
+        let Pending::Request { pos, sent } = std::mem::replace(&mut self.pending, Pending::None)
+        else {
             return Vec::new();
         };
         if !ok {
@@ -306,5 +347,8 @@ fn entry_of(a: &Agent) -> Entry {
 }
 
 fn error(pos: Position) -> Vec<Cmd> {
-    vec![Cmd::Flash { pos, rgb: palette::RED }]
+    vec![Cmd::Flash {
+        pos,
+        rgb: palette::RED,
+    }]
 }

@@ -20,7 +20,10 @@ fn bind(path: &Path) -> interprocess::local_socket::Listener {
     #[cfg(windows)]
     let name = {
         use interprocess::local_socket::GenericNamespaced;
-        path.to_string_lossy().to_string().to_ns_name::<GenericNamespaced>().unwrap()
+        path.to_string_lossy()
+            .to_string()
+            .to_ns_name::<GenericNamespaced>()
+            .unwrap()
     };
     #[cfg(unix)]
     let name = {
@@ -55,9 +58,16 @@ fn serve(replies: Vec<&'static str>) -> (PathBuf, thread::JoinHandle<Vec<String>
 
 #[test]
 fn a_call_sends_one_line_and_reads_one_response() {
-    let (path, server) = serve(vec![r#"{"id":"1","result":{"type":"pong","version":"0.9.1","protocol":3}}"#]);
+    let (path, server) = serve(vec![
+        r#"{"id":"1","result":{"type":"pong","version":"0.9.1","protocol":3}}"#,
+    ]);
     let got = Client::new(path).call(&Request::Ping).unwrap();
-    assert_eq!(got, Response::Pong { version: "0.9.1".into() });
+    assert_eq!(
+        got,
+        Response::Pong {
+            version: "0.9.1".into()
+        }
+    );
     let received = server.join().unwrap();
     assert_eq!(received.len(), 1);
     let sent: serde_json::Value = serde_json::from_str(&received[0]).unwrap();
@@ -71,8 +81,18 @@ fn each_call_opens_its_own_connection() {
         r#"{"id":"2","result":{"type":"ok"}}"#,
     ]);
     let client = Client::new(path);
-    assert_eq!(client.call(&Request::AgentFocus { target: "p".into() }).unwrap(), Response::Ok);
-    assert_eq!(client.call(&Request::AgentFocus { target: "q".into() }).unwrap(), Response::Ok);
+    assert_eq!(
+        client
+            .call(&Request::AgentFocus { target: "p".into() })
+            .unwrap(),
+        Response::Ok
+    );
+    assert_eq!(
+        client
+            .call(&Request::AgentFocus { target: "q".into() })
+            .unwrap(),
+        Response::Ok
+    );
     assert_eq!(server.join().unwrap().len(), 2);
 }
 

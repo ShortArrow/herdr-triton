@@ -32,7 +32,9 @@ impl Client {
             .write_all(encode_request("herdr-triton", request).as_bytes())
             .map_err(CallError::Io)?;
         let mut line = String::new();
-        BufReader::new(stream).read_line(&mut line).map_err(CallError::Io)?;
+        BufReader::new(stream)
+            .read_line(&mut line)
+            .map_err(CallError::Io)?;
         decode_response(line.trim_end()).map_err(CallError::Wire)
     }
 }
@@ -48,7 +50,9 @@ fn connect(path: &Path) -> io::Result<Stream> {
     #[cfg(windows)]
     let name = {
         use interprocess::local_socket::GenericNamespaced;
-        path.to_string_lossy().to_string().to_ns_name::<GenericNamespaced>()?
+        path.to_string_lossy()
+            .to_string()
+            .to_ns_name::<GenericNamespaced>()?
     };
     Stream::connect(name)
 }
