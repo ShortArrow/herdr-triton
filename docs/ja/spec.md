@@ -240,8 +240,9 @@ LED は RGB 順で受け取り、`ws2812-pio` は GRB 順で送るので、firmw
 
 ### 識別
 
-USB の product 文字列は `herdr-triton`、シリアル番号はフラッシュのユニーク ID から作る。
-`bridge` は product 文字列でデバイスを探し、VID/PID は識別に使わない。
+USB のシリアル番号は `TRITON-` にフラッシュのユニーク ID の16進表記を続けたもので、product 文字列は `herdr-triton` とする。
+`bridge` はシリアル番号が `TRITON-` で始まることで、大文字小文字を区別せずにデバイスを探し、VID/PID は識別に使わない。
+Windows の `serialport` は CDC ポートのシリアル番号を大文字にして返すが、product 文字列の代わりにポートの表示名を返すため、product 文字列では探せない。
 
 ### USB 構成
 
@@ -275,7 +276,7 @@ USB CDC-ACM 上でやりとりする。
 | `rp2040-hal` | 0.11 | `ws2812-pio` 0.9 が 0.12 とはビルドできない |
 | `usb-device` | 0.3 | `drooling` と `usbd-serial` 0.2 が要求する |
 | `interprocess` | 2.4 | named pipe の命名を herdr と揃える |
-| `serialport` | 4 | Windows / Linux / macOS で product 文字列からポートを探せる |
+| `serialport` | 4 | Windows / Linux / macOS でポートを USB のシリアル番号付きで列挙できる |
 
 ## 未規定
 

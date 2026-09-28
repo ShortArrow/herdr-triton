@@ -213,7 +213,7 @@ Every colour is scaled so that full brightness is 64/255; WS2812s at full power 
 
 ### Identification
 
-The USB product string is `herdr-triton`, and the serial number is derived from the flash unique ID. `bridge` finds the device by product string. The VID/PID is not used for identification.
+The USB serial number is `TRITON-` followed by the flash unique ID in hex, and the product string is `herdr-triton`. `bridge` finds the device by the `TRITON-` prefix of the serial number, ignoring case: on Windows `serialport` reports a CDC port's serial number, upper-cased, but gives the port's display name in place of the product string. The VID/PID is not used for identification.
 
 ### USB composition
 
@@ -241,7 +241,7 @@ A decoder that meets a frame it cannot decode, or one longer than the protocol's
 | `rp2040-hal` | 0.11 | `ws2812-pio` 0.9 does not build against 0.12 |
 | `usb-device` | 0.3 | Required by `drooling` and `usbd-serial` 0.2 |
 | `interprocess` | 2.4 | Same named-pipe naming as herdr |
-| `serialport` | 4 | Finds the port by product string on Windows, Linux and macOS |
+| `serialport` | 4 | Lists ports with their USB serial numbers on Windows, Linux and macOS |
 
 ## Unspecified
 
