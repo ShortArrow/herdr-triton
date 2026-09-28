@@ -31,7 +31,7 @@ The device does not act as a HID keyboard. Key input reaches `bridge` over seria
 
 herdr's API accepts one request per connection: the server reads the first line and answers it. `bridge` opens a new connection for every request.
 
-The socket path is resolved as herdr resolves it, in this order:
+One `bridge` serves one herdr session (ADR 0007). `bridge --session <name>` picks it by name, `default` being the default session, and wins over the environment, as herdr's own `--session` does. Without `--session`, the socket path is resolved as herdr resolves it, in this order:
 
 1. `HERDR_SOCKET_PATH`
 2. `HERDR_SESSION`, giving `<config>/sessions/<name>/herdr.sock`
@@ -250,4 +250,4 @@ A decoder that meets a frame it cannot decode, or one longer than the protocol's
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
 - Clearing `sent` when herdr never reports a state change after an approval
 - Which client's view `focused` reflects when several herdr clients are attached
-- Several herdr sessions, or several devices, at once
+- Several devices at once

@@ -35,7 +35,9 @@ herdr のエージェントが承認待ち（`blocked`）になったら、RP204
 herdr の API は1接続につき1リクエストしか受け付けない。
 サーバーは最初の1行を読んでそれに応答するだけなので、`bridge` はリクエストのたびに接続を開く。
 
-ソケットのパスは herdr と同じ順序で決める。
+1つの `bridge` が受け持つ herdr のセッションは1つだけとする（ADR 0007）。
+`bridge --session <name>` でセッションを名前で選び（既定のセッションは `default`）、herdr 自身の `--session` と同じく環境変数より優先する。
+`--session` が無ければ、ソケットのパスは herdr と同じ順序で決める。
 
 1. `HERDR_SOCKET_PATH`
 2. `HERDR_SESSION` があれば `<config>/sessions/<name>/herdr.sock`
@@ -286,4 +288,4 @@ USB CDC-ACM 上でやりとりする。
   質問 UI が出た瞬間に、すでに押しかけていた Approve がそれに答えてしまうのを防ぐためのもの
 - 承認後に herdr が状態変化を一度も報告しなかったときに `sent` をどう解除するか
 - herdr のクライアントが複数接続されているとき、`focused` がどのクライアントの表示に対応するか
-- 複数の herdr セッション、複数のデバイスの同時利用
+- 複数のデバイスの同時利用
