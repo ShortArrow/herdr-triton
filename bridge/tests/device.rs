@@ -46,7 +46,7 @@ impl Write for Sim {
                 if let Some(reply) = self.keypad.line(line, self.now) {
                     let mut text = String::new();
                     protocol::scpi::write_reply(&reply, &mut text).unwrap();
-                    self.out.extend(text.bytes().chain([b'\n']));
+                    self.out.extend(text.bytes().chain(*b"\n"));
                 }
             }
         }
