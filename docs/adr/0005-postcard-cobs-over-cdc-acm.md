@@ -1,6 +1,6 @@
 # 0005. Frame postcard messages with COBS over CDC-ACM
 
-- Status: Accepted
+- Status: Superseded by 0009
 - Date: 2026-09-28
 
 ## Context

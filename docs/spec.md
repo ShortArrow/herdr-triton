@@ -5,18 +5,36 @@ When a herdr agent is waiting for approval (`blocked`), the three keys of an RP2
 ## Architecture
 
 ```
-[RP2040-Keyboard-3] --USB CDC--> [bridge] --local socket--> [herdr]
-   key down / up                    polls agent.list, holds the queue
-   <-- LED frames --                decides what the LEDs show
+[herdr] --plugin event / startup--> [bridge hook]   one listener at a time
+[RP2040-Keyboard-3] <--USB CDC, SCPI--> [bridge] --local socket--> [herdr]
+   queues key events, draws LEDs          polls agent.list and KEY:EVENt?
 ```
 
 | Component | Responsibility |
 |---|---|
-| `firmware` | Sends key down and key up to the host. Draws the LED frames it receives. Detects a missing host. Makes no herdr decisions |
-| `bridge` | Polls herdr for a snapshot of all agents, holds the state, turns key input into herdr requests, and decides the LED output |
-| `protocol` | Message types shared by `firmware` and `bridge`. `no_std` |
+| `firmware` | Queues debounced key events and answers `KEY:EVENt?`. Draws the LEDs it is told to. Detects a missing host. Makes no herdr decisions |
+| `bridge` | Polls herdr for a snapshot of all agents and the device for key events, holds the state, turns key input into herdr requests, and decides the LED output |
+| `protocol` | Message types shared by `firmware` and `bridge`, and their SCPI text form. `no_std` |
+| `keypad` | The firmware's hardware-free core. `no_std` |
+| plugin | `herdr-plugin.toml`: starts `bridge hook` from herdr's startup and event hooks |
 
-The device does not act as a HID keyboard. Key input reaches `bridge` over serial only.
+The device is an IO instrument on a serial line, not a HID keyboard. Key input reaches `bridge` over serial only.
+
+## Listener lifecycle
+
+`bridge` runs as a herdr plugin's hook (ADR 0008): it runs while agents are waiting and exits when there is nothing to do.
+
+| Given | When | Then |
+|---|---|---|
+| any | herdr runs the plugin's `startup`, or emits `pane.agent_status_changed` | herdr starts `bridge hook` |
+| another `bridge` holds the device's port | `bridge hook` starts | it retries opening the port for 500 ms, then exits |
+| the port opens | `bridge hook` starts | it becomes the listener and runs the loop below |
+| listener | `queue` has been empty for 5 s | it closes the port and exits |
+| listener | herdr has been unreachable for 5 s | it closes the port and exits |
+
+Only the process holding the port acts, so at most one listener runs per device. `bridge run` runs the same loop without the idle exit, for use without the plugin. While no listener runs, the device is in `NoHost`: it shows dim white and drops key presses.
+
+A hook's standard output and error go to herdr, which counts the hook as running until they close. The listener is the only long-lived hook, and it writes its log to `HERDR_PLUGIN_STATE_DIR`.
 
 ## herdr
 
@@ -169,7 +187,7 @@ The steady LED output is a function of `(conn, device, len(queue), approvable(fo
 |---|---|---|---|
 | `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
 | `Incompatible` | red, solid | red, solid | red, solid |
-| `queue` empty | off | off | off |
+| `queue` empty | off | off | off, until the listener exits and the device shows `NoHost` |
 | `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
 | `queue` has 2 or more | reddish amber, breathing | as above | as above |
 
@@ -182,16 +200,16 @@ Flashes:
 
 ### No-host state
 
-The firmware is in `NoHost` while DTR is low, or when no frame has arrived from the host for 3 s. In `NoHost` it:
+The firmware is in `NoHost` while DTR is low, or when no command has arrived from the host for 3 s. In `NoHost` it:
 
-- discards key events instead of queueing them
+- discards key events instead of queueing them, and empties the queue on entering
 - shows a dim white on all three LEDs
 
-It leaves `NoHost` on the next full LED frame, and then sends `Ready`. A frame that arrives while DTR is low does not leave `NoHost`.
+A command that arrives while DTR is high ends `NoHost`; the LEDs then show their last set state, dark after power-up. A listener polls `KEY:EVENt?` every 20 ms, which keeps the device out of `NoHost`.
 
 ### Keys
 
-A key reports `Down` or `Up` once its level has stayed the same for 5 ms.
+A key reports `Down` or `Up` once its level has stayed the same for 5 ms. Reported events wait in a queue of 16 until the host reads them; an event that finds the queue full is dropped and records error -350.
 
 ### Rendering
 
@@ -221,18 +239,35 @@ CDC serial and `drooling::PicotoolReset`, built with `usb_rev(Usb210)`, `max_pac
 
 ## firmware ↔ bridge protocol
 
-Carried over USB CDC-ACM. Each message is serialised with postcard, COBS-encoded, and terminated by `0x00` (ADR 0005). The types live in the `protocol` crate, and keys and LEDs are named by position (`Left`, `Middle`, `Right`), not by GPIO or chain index.
+Carried over USB CDC-ACM as SCPI-style text, one command per line (ADR 0009). The host sends commands; the device answers queries only and never speaks unasked, so any serial terminal can drive it.
 
-| Direction | Message | Meaning |
+- Lines end with `\n`; a preceding `\r` is ignored. A line is at most 64 bytes
+- Headers are case-insensitive and accept the long form or the short form in upper case in this table (`EVENt` accepts `EVEN` and `EVENT`)
+- `<n>` is `1`, `2` or `3`, left to right; `<rgb>` is `#RRGGBB`; `<mode>` is `OFF`, `SOLid`, `BREathe` or `BLINk`
+- Commands without `?` produce no reply. Each query produces one line
+
+| Command | Reply | Meaning |
 |---|---|---|
-| device → host | `Ready { protocol }` | Sent once on leaving `NoHost`, with the protocol version the firmware speaks |
-| device → host | `Key { pos, edge }` | A key went `Down` or `Up` |
-| host → device | `Frame([Led; 3])` | Colour and mode (`Off`, `Solid`, `Breathe`, `Blink`) of every LED, left to right |
-| host → device | `Flash { pos, rgb }` | Flash one key's LED once |
+| `*IDN?` | `ShortArrow,herdr-triton,<serial>,<firmware version>` | Identify the device |
+| `SYSTem:PROTocol?` | `2` | The protocol version |
+| `SYSTem:ERRor?` | `<code>,"<message>"` | The oldest queued error, or `0,"No error"` |
+| `LED:ALL <rgb>,<mode>,<rgb>,<mode>,<rgb>,<mode>` | | Set every LED, left to right |
+| `LED<n> <rgb>,<mode>` | | Set one LED |
+| `LED<n>:FLASh <rgb>` | | Flash one LED once |
+| `KEY:EVENt?` | `LEFT,DOWN`, …, `RIGHT,UP`, or `NONE` | Take the oldest queued key event |
 
-A decoder that meets a frame it cannot decode, or one longer than the protocol's maximum, reports an error for that frame and resumes at the next `0x00`.
+Errors are queued, up to 8, and read with `SYSTem:ERRor?`:
 
-`bridge` sends a full frame on every change and at least once per second. On opening the port it sets DTR, discards any input already buffered, and sends a full frame. It ignores key events until it has received `Ready` with its own protocol version; on a different version it closes the port and reports the mismatch.
+| Code | Message | When |
+|---|---|---|
+| -100 | `Command error` | A line that does not parse |
+| -113 | `Undefined header` | An unknown header |
+| -222 | `Data out of range` | An LED number, colour or mode that is not valid |
+| -350 | `Queue overflow` | A key event or error that found its queue full |
+
+The `protocol` crate holds the typed commands and replies and their text form, used by both ends.
+
+`bridge` sets DTR on opening the port, discards input already buffered, and asks `SYSTem:PROTocol?`. On a version other than its own it closes the port and reports the mismatch. It then sends `LED:ALL` on every change and at least once per second, and polls `KEY:EVENt?` every 20 ms until it answers `NONE`.
 
 ## Dependencies
 
@@ -242,6 +277,8 @@ A decoder that meets a frame it cannot decode, or one longer than the protocol's
 | `usb-device` | 0.3 | Required by `drooling` and `usbd-serial` 0.2 |
 | `interprocess` | 2.4 | Same named-pipe naming as herdr |
 | `serialport` | 4 | Lists ports with their USB serial numbers on Windows, Linux and macOS |
+
+The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the version this specification requires anyway).
 
 ## Unspecified
 

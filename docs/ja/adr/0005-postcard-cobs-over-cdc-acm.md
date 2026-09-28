@@ -1,6 +1,6 @@
 # 0005. CDC-ACM 上で postcard のメッセージを COBS で区切る
 
-- Status: Accepted
+- Status: Superseded by 0009
 - Date: 2026-09-28
 
 ## Context
