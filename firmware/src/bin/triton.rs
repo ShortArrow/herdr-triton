@@ -2,8 +2,9 @@
 //! RP2040-Keyboard-3's keys, WS2812 LEDs and USB.
 //!
 //! Keys: left GP14, middle GP13, right GP12 (active low). LEDs: WS2812 chain
-//! on GP18, L1..L3 left to right. USB: CDC serial carrying `protocol`
-//! frames, plus `drooling::PicotoolReset` for button-free flashing.
+//! on GP18, L1..L3 left to right. USB: CDC serial speaking SCPI-style
+//! lines (ADR 0009), plus `drooling::PicotoolReset` for button-free
+//! flashing.
 
 #![no_std]
 #![no_main]
@@ -12,7 +13,7 @@ use cortex_m_rt::entry;
 use embedded_hal::digital::InputPin;
 use keypad::{led_order, Keypad, Millis};
 use panic_halt as _;
-use protocol::{encode, Decoder, DeviceMessage, HostMessage, MAX_FRAME_LEN};
+use protocol::scpi::{write_reply, LineBuffer, Reply};
 use rp2040_hal::{self as hal, clocks::Clock, pac, pio::PIOExt};
 use smart_leds::{SmartLedsWrite, RGB8};
 use usb_device::{class_prelude::UsbBusAllocator, device::UsbRev, prelude::*, LangID};
@@ -28,6 +29,7 @@ pub static BOOT2_FIRMWARE: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 const XOSC_CRYSTAL_FREQ: u32 = 12_000_000;
 /// How often the LEDs are redrawn, for the animations.
 const REDRAW: Millis = 10;
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[entry]
 fn main() -> ! {
@@ -90,8 +92,8 @@ fn main() -> ! {
         clocks.peripheral_clock.freq(),
     );
 
-    let mut keypad = Keypad::new();
-    let mut decoder = Decoder::<HostMessage>::new();
+    let mut keypad = Keypad::new(serial_number, VERSION);
+    let mut lines = LineBuffer::new();
     let mut next_redraw: Millis = 0;
 
     loop {
@@ -101,8 +103,8 @@ fn main() -> ! {
         let mut rx = [0u8; 64];
         if let Ok(n) = serial.read(&mut rx) {
             for &byte in &rx[..n] {
-                if let Some(Ok(msg)) = decoder.push(byte) {
-                    if let Some(reply) = keypad.receive(msg, now()) {
+                if let Some(line) = lines.push(byte) {
+                    if let Some(reply) = keypad.line(line, now()) {
                         send(&mut serial, &reply);
                     }
                 }
@@ -110,9 +112,7 @@ fn main() -> ! {
         }
 
         let pressed = keys.each_mut().map(|k| k.is_low().unwrap_or(false));
-        for msg in keypad.scan(pressed, now()).into_iter().flatten() {
-            send(&mut serial, &msg);
-        }
+        keypad.scan(pressed, now());
 
         let t = now();
         if t >= next_redraw {
@@ -126,11 +126,13 @@ fn main() -> ! {
     }
 }
 
-/// Writes one frame without blocking; a frame that does not fit is dropped
-/// and the host's decoder resynchronises at the next terminator.
-fn send(serial: &mut SerialPort<hal::usb::UsbBus>, msg: &DeviceMessage) {
-    let mut buf = [0u8; MAX_FRAME_LEN];
-    let _ = serial.write(encode(msg, &mut buf));
+/// Writes one reply line without blocking; what does not fit in the USB
+/// buffer is dropped, and the host sees a short or missing reply.
+fn send(serial: &mut SerialPort<hal::usb::UsbBus>, reply: &Reply) {
+    let mut line: heapless::String<96> = heapless::String::new();
+    if write_reply(reply, &mut line).is_ok() && line.push('\n').is_ok() {
+        let _ = serial.write(line.as_bytes());
+    }
 }
 
 /// `TRITON-` and the flash chip's 64-bit unique id in hex, read before

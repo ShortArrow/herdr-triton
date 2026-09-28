@@ -243,12 +243,13 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "firmware"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "drooling",
  "embedded-hal 1.0.0",
+ "heapless",
  "keypad",
  "panic-halt",
  "protocol",
