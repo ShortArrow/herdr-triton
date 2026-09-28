@@ -1,0 +1,23 @@
+[package]
+name = "firmware"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "io_probe"
+test = false
+bench = false
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+drooling = { version = "0.2", features = ["rp2040"] }
+embedded-hal = "1.0"
+panic-halt = "0.2"
+rp2040-boot2 = "0.3"
+rp2040-hal = { version = "0.11", features = ["rt", "critical-section-impl"] }
+smart-leds = "0.4"
+usb-device = "0.3"
+usbd-serial = "0.2"
+ws2812-pio = "0.9"

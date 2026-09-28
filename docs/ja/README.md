@@ -9,6 +9,17 @@ herdr のエージェントが承認待ちになったら、3キーの RP2040-Ke
 - [仕様](spec.md)
 - [ADR](adr/)
 
+## 書き込み
+
+`cargo probe` で確認用ファームウェアをビルドし、[`drool`](https://crates.io/crates/drool)（`cargo install drool`）で書き込む。
+このリポジトリのファームウェアが一度動いていれば、ボタンは要らない。
+
+初回だけ次を行う。
+
+1. Windows では、RP2040 の BOOTSEL インターフェースに WinUSB を一度入れる。
+   手順は [picotool の README](https://github.com/raspberrypi/picotool/blob/develop/README.md#zadig) のとおりで、BOOT を押しながら USB を挿し、[Zadig](https://zadig.akeo.ie) で `RP2 Boot (Interface 1)` を選び、`WinUSB` を入れる
+2. BOOTSEL のまま `cargo probe` を実行する
+
 ## Factor
 
 - [herdr Socket API](https://herdr.dev/ja/docs/socket-api/)

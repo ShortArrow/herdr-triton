@@ -1,0 +1,15 @@
+# The RP2040 target is selected with a cfg() predicate so that host crates
+# in this workspace build with the host defaults. Firmware builds name
+# their target explicitly (see the aliases).
+[target.'cfg(all(target_arch = "arm", target_os = "none", target_abi = "eabi"))']
+# First flash needs the BOOT button; later flashes go through drooling's
+# reset interface.
+runner = "drool run"
+rustflags = [
+  "-C", "linker=flip-link",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=--nmagic",
+]
+
+[alias]
+probe = "run --release -p firmware --bin io_probe --target thumbv6m-none-eabi"
