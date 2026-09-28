@@ -39,13 +39,15 @@ The socket path is resolved as herdr resolves it, in this order:
 
 `<config>` is `$XDG_CONFIG_HOME/herdr` when set, otherwise `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere. On Windows the path string is the name of a named pipe (interprocess `GenericNamespaced`), and the file at that path is only a marker. `bridge` uses the same `interprocess` minor version as herdr.
 
+herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from a herdr pane talks to that pane's session whatever `HERDR_SESSION` says.
+
 ### Requests used
 
 | Request | Use |
 |---|---|
 | `ping` | Version check on connect |
 | `agent.list` | Snapshot of every agent: `pane_id`, `agent`, `agent_status`, `focused`, `state_change_seq` |
-| `agent.focus {target}` | Jump. Switches workspace and tab and focuses the pane |
+| `agent.focus {target}` | Jump. Switches workspace and tab and focuses the pane. Replies with `agent_info`, not `ok` |
 | `agent.send_keys {target, keys}` | Approve and Select. herdr rejects it if the pane no longer hosts the same agent |
 
 `bridge` does not use `events.subscribe`. See ADR 0004.

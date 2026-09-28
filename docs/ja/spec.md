@@ -45,13 +45,16 @@ herdr の API は1接続につき1リクエストしか受け付けない。
 Windows ではこのパス文字列がそのまま named pipe の名前になり（interprocess の `GenericNamespaced`）、パスにあるファイルは目印でしかない。
 命名規則を揃えるため、`bridge` は herdr と同じ `interprocess` のマイナーバージョンを使う。
 
+herdr は自分の pane の中で `HERDR_SOCKET_PATH` を設定する。
+そのため herdr の pane から起動した `bridge` は、`HERDR_SESSION` の値に関係なく、その pane のセッションにつながる。
+
 ### 使うリクエスト
 
 | リクエスト | 用途 |
 |---|---|
 | `ping` | 接続時のバージョン確認 |
 | `agent.list` | 全エージェントの状態。`pane_id`, `agent`, `agent_status`, `focused`, `state_change_seq` を使う |
-| `agent.focus {target}` | Jump。ワークスペースとタブを切り替えて pane にフォーカスする |
+| `agent.focus {target}` | Jump。ワークスペースとタブを切り替えて pane にフォーカスする。応答は `ok` ではなく `agent_info` |
 | `agent.send_keys {target, keys}` | Approve と Select。pane にいるエージェントが入れ替わっていれば herdr が拒否する |
 
 `events.subscribe` は使わない（ADR 0004）。
