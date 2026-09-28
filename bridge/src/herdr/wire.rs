@@ -22,6 +22,17 @@ pub enum Request {
     AgentRead {
         target: String,
     },
+    WorkspaceList,
+    PaneList {
+        workspace_id: String,
+    },
+}
+
+/// A workspace or pane: its herdr id and whether it has focus.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Node {
+    pub id: String,
+    pub focused: bool,
 }
 
 /// The responses the bridge understands.
@@ -35,6 +46,8 @@ pub enum Response {
     Agent(Agent),
     /// The reply to `agent.read`: the screen text.
     Screen(String),
+    Workspaces(Vec<Node>),
+    Panes(Vec<Node>),
     Ok,
     Error {
         code: String,
@@ -67,6 +80,8 @@ pub fn encode_request(id: &str, request: &Request) -> String {
             "agent.read",
             json!({ "target": target, "source": "visible" }),
         ),
+        Request::WorkspaceList => ("workspace.list", json!({})),
+        Request::PaneList { workspace_id } => ("pane.list", json!({ "workspace_id": workspace_id })),
     };
     let mut line = json!({ "id": id, "method": method, "params": params }).to_string();
     line.push('\n');
@@ -93,7 +108,21 @@ enum KnownResult {
     AgentList { agents: Vec<AgentInfo> },
     AgentInfo { agent: AgentInfo },
     PaneRead { read: ReadText },
+    WorkspaceList { workspaces: Vec<WorkspaceInfo> },
+    PaneList { panes: Vec<PaneInfo> },
     Ok {},
+}
+
+#[derive(Deserialize)]
+struct WorkspaceInfo {
+    workspace_id: String,
+    focused: bool,
+}
+
+#[derive(Deserialize)]
+struct PaneInfo {
+    pane_id: String,
+    focused: bool,
 }
 
 #[derive(Deserialize)]
@@ -131,6 +160,18 @@ impl From<KnownResult> for Response {
             }
             KnownResult::AgentInfo { agent } => Response::Agent(agent.into()),
             KnownResult::PaneRead { read } => Response::Screen(read.text),
+            KnownResult::WorkspaceList { workspaces } => Response::Workspaces(
+                workspaces
+                    .into_iter()
+                    .map(|w| Node { id: w.workspace_id, focused: w.focused })
+                    .collect(),
+            ),
+            KnownResult::PaneList { panes } => Response::Panes(
+                panes
+                    .into_iter()
+                    .map(|p| Node { id: p.pane_id, focused: p.focused })
+                    .collect(),
+            ),
             KnownResult::Ok {} => Response::Ok,
         }
     }
@@ -164,7 +205,7 @@ pub fn decode_response(line: &str) -> Result<Response, WireError> {
         }),
         Envelope::Success { result } => match result.get("type").and_then(Value::as_str) {
             None => Err(WireError::Malformed("result has no type".into())),
-            Some("pong" | "agent_list" | "agent_info" | "pane_read" | "ok") => {
+            Some("pong" | "agent_list" | "agent_info" | "pane_read" | "workspace_list" | "pane_list" | "ok") => {
                 Ok(serde_json::from_value::<KnownResult>(result)
                     .map_err(malformed)?
                     .into())

@@ -120,3 +120,27 @@ fn without_any_base_the_temp_dir_is_used() {
         );
     }
 }
+
+mod named_session {
+    use super::*;
+    use bridge::herdr::socket_path::for_session;
+
+    fn for_session_with(name: &str, vars: &[(&str, &str)]) -> PathBuf {
+        for_session(name, env(vars), Platform::Windows, Path::new(TEMP))
+    }
+
+    #[test]
+    fn wins_over_herdr_socket_path_and_herdr_session() {
+        let got = for_session_with(
+            "triton",
+            &[("HERDR_SOCKET_PATH", "custom.sock"), ("HERDR_SESSION", "work"), ("APPDATA", "ad")],
+        );
+        assert_eq!(got, path(&["ad", "herdr", "sessions", "triton", "herdr.sock"]));
+    }
+
+    #[test]
+    fn default_is_the_default_session() {
+        let got = for_session_with("default", &[("HERDR_SOCKET_PATH", "custom.sock"), ("APPDATA", "ad")]);
+        assert_eq!(got, path(&["ad", "herdr", "herdr.sock"]));
+    }
+}

@@ -44,6 +44,23 @@ pub fn resolve(
     data.join(SOCKET_FILE)
 }
 
+/// The API socket of the session called `name` (`default` for the default
+/// session). An explicit session wins over `HERDR_SOCKET_PATH`, as in herdr.
+pub fn for_session(
+    name: &str,
+    env: impl Fn(&str) -> Option<String>,
+    platform: Platform,
+    temp_dir: &Path,
+) -> PathBuf {
+    let config = config_dir(&env, platform, temp_dir);
+    let data = if name == DEFAULT_SESSION {
+        config
+    } else {
+        config.join("sessions").join(name)
+    };
+    data.join(SOCKET_FILE)
+}
+
 /// A named session other than `default`; an invalid name counts as none.
 fn session_name(env: &impl Fn(&str) -> Option<String>) -> Option<String> {
     env("HERDR_SESSION").filter(|name| name != DEFAULT_SESSION && is_valid_session_name(name))

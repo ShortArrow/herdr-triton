@@ -29,3 +29,84 @@ mod select_json {
         );
     }
 }
+
+mod select_id {
+    use bridge::position::select_id;
+    use bridge::prompt_screen::parse;
+
+    #[test]
+    fn is_the_highlighted_option_number() {
+        assert_eq!(select_id(parse("   1. Yes\n ❯ 2. No\n").as_ref()), Some("2".into()));
+    }
+
+    #[test]
+    fn is_none_without_a_highlight_or_a_prompt() {
+        assert_eq!(select_id(parse("  1. a\n  2. b\n").as_ref()), None);
+        assert_eq!(select_id(None), None);
+    }
+}
+
+mod pane {
+    use bridge::herdr::wire::Node;
+    use bridge::position::{pane_id, pane_json};
+    use serde_json::json;
+
+    fn panes() -> Vec<Node> {
+        vec![
+            Node { id: "w1:p1".into(), focused: false },
+            Node { id: "w1:p2".into(), focused: true },
+        ]
+    }
+
+    #[test]
+    fn id_is_the_focused_pane_without_its_prefixes() {
+        assert_eq!(pane_id(&panes()), Some("2".into()));
+    }
+
+    #[test]
+    fn id_is_none_when_no_pane_is_focused() {
+        let mut unfocused = panes();
+        unfocused[1].focused = false;
+        assert_eq!(pane_id(&unfocused), None);
+    }
+
+    #[test]
+    fn json_names_the_workspace_the_focused_pane_and_every_pane() {
+        assert_eq!(pane_json("w1", &panes()), json!({"w": "1", "p": "2", "panes": ["1", "2"]}));
+    }
+}
+
+mod workspace {
+    use bridge::herdr::wire::Node;
+    use bridge::position::{workspace_id, workspace_json};
+    use serde_json::json;
+
+    fn workspaces() -> Vec<Node> {
+        vec![
+            Node { id: "w1".into(), focused: false },
+            Node { id: "wY".into(), focused: true },
+        ]
+    }
+
+    #[test]
+    fn id_is_the_focused_workspace_without_its_prefix() {
+        assert_eq!(workspace_id(&workspaces()), Some("Y".into()));
+    }
+
+    #[test]
+    fn json_names_the_session_the_focused_workspace_and_every_workspace() {
+        assert_eq!(
+            workspace_json("triton", &workspaces()),
+            json!({"session": "triton", "w": "Y", "workspaces": ["1", "Y"]})
+        );
+    }
+
+    #[test]
+    fn json_has_a_null_workspace_when_none_is_focused() {
+        let none = vec![Node { id: "w1".into(), focused: false }];
+        assert_eq!(
+            workspace_json("default", &none),
+            json!({"session": "default", "w": null, "workspaces": ["1"]})
+        );
+    }
+}

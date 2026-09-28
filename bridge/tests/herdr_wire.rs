@@ -60,6 +60,22 @@ mod requests {
             json!({"id": "r1", "method": "agent.send_keys", "params": {"target": "w1:p2", "keys": ["down"]}})
         );
     }
+
+    #[test]
+    fn workspace_list() {
+        assert_eq!(
+            encoded(&Request::WorkspaceList),
+            json!({"id": "r1", "method": "workspace.list", "params": {}})
+        );
+    }
+
+    #[test]
+    fn pane_list_of_one_workspace() {
+        assert_eq!(
+            encoded(&Request::PaneList { workspace_id: "w1".into() }),
+            json!({"id": "r1", "method": "pane.list", "params": {"workspace_id": "w1"}})
+        );
+    }
 }
 
 mod responses {
@@ -67,6 +83,32 @@ mod responses {
 
     fn decode(v: Value) -> Result<Response, WireError> {
         decode_response(&v.to_string())
+    }
+
+    fn node(id: &str, focused: bool) -> Node {
+        Node { id: id.into(), focused }
+    }
+
+    #[test]
+    fn workspace_list_keeps_ids_and_focus() {
+        let got = decode(json!({"id": "r1", "result": {"type": "workspace_list", "workspaces": [
+            {"workspace_id": "w1", "number": 1, "label": "a", "focused": false, "pane_count": 1,
+             "tab_count": 1, "active_tab_id": "w1:t1", "agent_status": "blocked"},
+            {"workspace_id": "wY", "number": 2, "label": "b", "focused": true, "pane_count": 2,
+             "tab_count": 1, "active_tab_id": "wY:t1", "agent_status": "idle"}
+        ]}}));
+        assert_eq!(got, Ok(Response::Workspaces(vec![node("w1", false), node("wY", true)])));
+    }
+
+    #[test]
+    fn pane_list_keeps_ids_and_focus() {
+        let got = decode(json!({"id": "r1", "result": {"type": "pane_list", "panes": [
+            {"pane_id": "w1:p1", "terminal_id": "t1", "workspace_id": "w1", "tab_id": "w1:t1",
+             "focused": true, "cwd": "/", "agent_status": "blocked", "revision": 1},
+            {"pane_id": "w1:p2", "terminal_id": "t2", "workspace_id": "w1", "tab_id": "w1:t1",
+             "focused": false, "cwd": "/", "agent_status": "idle", "revision": 1}
+        ]}}));
+        assert_eq!(got, Ok(Response::Panes(vec![node("w1:p1", true), node("w1:p2", false)])));
     }
 
     #[test]
