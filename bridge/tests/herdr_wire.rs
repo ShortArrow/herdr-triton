@@ -101,6 +101,24 @@ mod responses {
     }
 
     #[test]
+    fn agent_info_is_the_reply_to_agent_focus() {
+        let got = decode(json!({"id": "r1", "result": {"type": "agent_info", "agent":
+            {"terminal_id": "t1", "agent": "claude", "agent_status": "blocked", "workspace_id": "w1",
+             "tab_id": "w1:t1", "pane_id": "w1:p1", "focused": true, "state_change_seq": 6, "revision": 2}
+        }}));
+        assert_eq!(
+            got,
+            Ok(Response::Agent(Agent {
+                pane_id: "w1:p1".into(),
+                agent: Some("claude".into()),
+                status: Status::Blocked,
+                focused: true,
+                state_change_seq: 6,
+            }))
+        );
+    }
+
+    #[test]
     fn ok() {
         assert_eq!(decode(json!({"id": "r1", "result": {"type": "ok"}})), Ok(Response::Ok));
     }

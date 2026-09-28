@@ -20,6 +20,8 @@ pub enum Request {
 pub enum Response {
     Pong { version: String },
     Agents(Vec<Agent>),
+    /// The reply to `agent.focus`: the agent now focused.
+    Agent(Agent),
     Ok,
     Error { code: String, message: String },
 }
@@ -69,6 +71,7 @@ struct ErrorBody {
 enum KnownResult {
     Pong { version: String },
     AgentList { agents: Vec<AgentInfo> },
+    AgentInfo { agent: AgentInfo },
     Ok {},
 }
 
@@ -98,6 +101,7 @@ impl From<KnownResult> for Response {
         match result {
             KnownResult::Pong { version } => Response::Pong { version },
             KnownResult::AgentList { agents } => Response::Agents(agents.into_iter().map(Agent::from).collect()),
+            KnownResult::AgentInfo { agent } => Response::Agent(agent.into()),
             KnownResult::Ok {} => Response::Ok,
         }
     }
@@ -129,7 +133,7 @@ pub fn decode_response(line: &str) -> Result<Response, WireError> {
         Envelope::Success { result } => {
             match result.get("type").and_then(Value::as_str) {
                 None => Err(WireError::Malformed("result has no type".into())),
-                Some("pong" | "agent_list" | "ok") => {
+                Some("pong" | "agent_list" | "agent_info" | "ok") => {
                     Ok(serde_json::from_value::<KnownResult>(result).map_err(malformed)?.into())
                 }
                 Some(other) => Err(WireError::Unexpected(other.to_owned())),

@@ -2,7 +2,8 @@
 //! the version, and every agent `agent.list` reports.
 //!
 //! `herdr_probe` reads only. `herdr_probe send <pane_id> <key>...` also sends
-//! keys to one agent, for checking key names such as `down` and `enter`.
+//! keys to one agent, for checking key names such as `down` and `enter`, and
+//! `herdr_probe focus <pane_id>` focuses one agent.
 
 use bridge::herdr::client::Client;
 use bridge::herdr::socket_path::{resolve, Platform};
@@ -39,10 +40,15 @@ fn main() {
     }
 
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if let [cmd, target, keys @ ..] = args.as_slice() {
-        if cmd == "send" && !keys.is_empty() {
+    match args.as_slice() {
+        [cmd, target, keys @ ..] if cmd == "send" && !keys.is_empty() => {
             let request = Request::AgentSendKeys { target: target.clone(), keys: keys.to_vec() };
             println!("send_keys: {:?}", client.call(&request));
         }
+        [cmd, target] if cmd == "focus" => {
+            let request = Request::AgentFocus { target: target.clone() };
+            println!("focus: {:?}", client.call(&request));
+        }
+        _ => {}
     }
 }
