@@ -45,8 +45,8 @@ The socket path is resolved as herdr resolves it, in this order:
 |---|---|
 | `ping` | Version check on connect |
 | `agent.list` | Snapshot of every agent: `pane_id`, `agent`, `agent_status`, `focused`, `state_change_seq` |
-| `agent.focus {target}` | Jump and Next. Switches workspace and tab and focuses the pane |
-| `agent.send_keys {target, keys}` | Approve. herdr rejects it if the pane no longer hosts the same agent |
+| `agent.focus {target}` | Jump. Switches workspace and tab and focuses the pane |
+| `agent.send_keys {target, keys}` | Approve and Select. herdr rejects it if the pane no longer hosts the same agent |
 
 `bridge` does not use `events.subscribe`. See ADR 0004.
 
@@ -88,9 +88,11 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 
 | Position | Name | Action |
 |---|---|---|
-| left | Jump | Focus the head of `queue` |
-| middle | Approve | Send the approval keys to the focused pane, if it is approvable |
-| right | Next | Focus the entry after the focused pane in `queue`, cycling |
+| left | Jump | Move between waiting panes: the head of `queue`, or the entry after the focused one |
+| middle | Approve | Confirm the highlighted option of the focused prompt |
+| right | Select | Move the highlight of the focused prompt to the next option |
+
+To approve, press Jump, then Approve. To pick another option, such as rejecting, press Select until it is highlighted, then Approve. See ADR 0006.
 
 ## bridge state
 
@@ -100,7 +102,7 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 | `device` | `Absent \| Present` | Whether the serial port is open |
 | `queue` | sequence of `(pane_id, agent, state_change_seq)` | Agents in `blocked`, in the order `bridge` first saw them blocked |
 | `focused` | `pane_id` or none | The agent pane herdr reports as `focused` |
-| `sent` | set of `(pane_id, state_change_seq)` | Approvals sent and not yet followed by a state change |
+| `sent` | set of `(pane_id, state_change_seq)` | Confirmations sent and not yet followed by a state change |
 
 Invariants:
 
@@ -108,7 +110,7 @@ Invariants:
 - Every entry in `queue` was `blocked` in the latest snapshot
 - Every entry in `sent` matches an entry of `queue` in both `pane_id` and `state_change_seq`
 
-`approvable(p)` holds when `p` is in `queue`, `p` is `focused`, the entry's `agent` has approval keys configured, and `(p, seq)` is not in `sent`.
+`approvable(p)` holds when `p` is in `queue`, `p` is `focused`, the entry's `agent` has prompt keys configured, and `(p, seq)` is not in `sent`.
 
 ## Behaviour
 
@@ -135,39 +137,39 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` a
 | Given | When | Then |
 |---|---|---|
 | `conn ≠ Connected` | any key | error flash |
-| `queue` empty | Jump or Next | error flash |
-| `queue` not empty | Jump | `agent.focus` the head, refresh |
-| `queue` not empty, `focused ∉ queue` | Next | `agent.focus` the head, refresh |
-| `queue` not empty, `focused ∈ queue` | Next | `agent.focus` the entry after `focused`, cycling, refresh |
-| any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the approval keys and add `(focused, seq)` to `sent`; otherwise error flash |
-| any | a request fails | error flash, refresh. A failed approval is removed from `sent` |
+| `queue` empty | Jump | error flash |
+| `queue` not empty, `focused ∉ queue` | Jump | `agent.focus` the head, refresh |
+| `queue` not empty, `focused ∈ queue` | Jump | `agent.focus` the entry after `focused`, cycling, refresh |
+| any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
+| any | Select | Refresh. If `approvable(focused)`, `agent.send_keys` the select keys; otherwise error flash |
+| any | a request fails | error flash, refresh. A failed confirmation is removed from `sent` |
 
-Next does not reorder `queue`. When `queue` has one entry and it is focused, Next focuses it again.
+Jump does not reorder `queue`. When `queue` has one entry and it is focused, Jump focuses it again.
 
-Approve refreshes the snapshot right before deciding, so the decision uses state at most one request old. `sent` stops a second press from sending the approval keys to the same prompt, or to a prompt that replaced it, before herdr has reported a state change.
+Approve and Select refresh the snapshot right before deciding, so the decision uses state at most one request old. `sent` stops a second press from confirming the same prompt again, or a prompt that replaced it, before herdr has reported a state change. It also stops Select, so that an arrow key never lands in an agent's input box after the prompt has closed.
 
-### Approval keys
+### Prompt keys
 
 Keyed by herdr's agent id, in a configuration file.
 
-| Agent id | Approval keys (default) |
-|---|---|
-| `claude` | `["enter"]` |
-| `codex` | `["y"]` |
+| Agent id | Confirm keys (default) | Select keys (default) |
+|---|---|---|
+| `claude` | `["enter"]` | `["down"]` |
+| `codex` | `["enter"]` | `["down"]` |
 
-Claude Code's `enter` selects whichever option is highlighted.
+Both agents show their approval prompts as a list whose highlight moves with the arrow keys and is confirmed with `enter`. Codex also accepts `y`, but `y` picks "yes" whatever is highlighted, so it is not used.
 
 ## LEDs
 
 The steady LED output is a function of `(conn, device, len(queue), approvable(focused))`. A one-shot flash for a key press is drawn on top.
 
-| State | Jump | Approve | Next |
+| State | Jump | Approve | Select |
 |---|---|---|---|
 | `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
 | `Incompatible` | red, solid | red, solid | red, solid |
 | `queue` empty | off | off | off |
-| `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | off |
-| `queue` has 2 or more | reddish amber, breathing | as above | blue |
+| `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
+| `queue` has 2 or more | reddish amber, breathing | as above | as above |
 
 Flashes:
 
@@ -224,7 +226,7 @@ A decoder that meets a frame it cannot decode, or one longer than the protocol's
 
 ## Unspecified
 
-- Long-press actions (candidates: long Approve for "always allow", long Next to reject with `esc`)
+- Long-press actions
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
 - Clearing `sent` when herdr never reports a state change after an approval

@@ -51,8 +51,8 @@ Windows ではこのパス文字列がそのまま named pipe の名前になり
 |---|---|
 | `ping` | 接続時のバージョン確認 |
 | `agent.list` | 全エージェントの状態。`pane_id`, `agent`, `agent_status`, `focused`, `state_change_seq` を使う |
-| `agent.focus {target}` | Jump と Next。ワークスペースとタブを切り替えて pane にフォーカスする |
-| `agent.send_keys {target, keys}` | Approve。pane にいるエージェントが入れ替わっていれば herdr が拒否する |
+| `agent.focus {target}` | Jump。ワークスペースとタブを切り替えて pane にフォーカスする |
+| `agent.send_keys {target, keys}` | Approve と Select。pane にいるエージェントが入れ替わっていれば herdr が拒否する |
 
 `events.subscribe` は使わない（ADR 0004）。
 
@@ -95,9 +95,12 @@ firmware は書き込む前に赤と緑を入れ替える。
 
 | 位置 | 名前 | 動作 |
 |---|---|---|
-| 左 | Jump | `queue` の先頭にフォーカスする |
-| 中 | Approve | フォーカス中の pane が承認可能なら、承認キーを送る |
-| 右 | Next | `queue` の中でフォーカス中の pane の次にフォーカスする。末尾の次は先頭 |
+| 左 | Jump | 承認待ちの pane を移動する。`queue` の先頭か、フォーカス中の pane の次へ |
+| 中 | Approve | フォーカス中のプロンプトで、ハイライトされている選択肢を確定する |
+| 右 | Select | フォーカス中のプロンプトで、ハイライトを次の選択肢へ動かす |
+
+承認するなら Jump、Approve の順に押す。
+拒否など別の選択肢にするなら、それがハイライトされるまで Select を押してから Approve を押す（ADR 0006）。
 
 ## bridge の状態
 
@@ -107,7 +110,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 | `device` | `Absent \| Present` | シリアルポートを開いているか |
 | `queue` | `(pane_id, agent, state_change_seq)` の列 | `blocked` のエージェント。`bridge` が最初に blocked を観測した順 |
 | `focused` | `pane_id` または無し | herdr が `focused` と返すエージェントの pane |
-| `sent` | `(pane_id, state_change_seq)` の集合 | 承認キーを送ったあと、まだ状態変化が報告されていないもの |
+| `sent` | `(pane_id, state_change_seq)` の集合 | 確定キーを送ったあと、まだ状態変化が報告されていないもの |
 
 不変条件:
 
@@ -119,7 +122,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 
 - `p` が `queue` にある
 - `p` が `focused` である
-- その要素の `agent` に承認キーが設定されている
+- その要素の `agent` にプロンプト用のキーが設定されている
 - `(p, seq)` が `sent` に無い
 
 ## 振る舞い
@@ -150,42 +153,44 @@ firmware は書き込む前に赤と緑を入れ替える。
 | Given | When | Then |
 |---|---|---|
 | `conn ≠ Connected` | 任意のキー | エラー点滅 |
-| `queue` が空 | Jump か Next | エラー点滅 |
-| `queue` が空でない | Jump | 先頭へ `agent.focus`、再取得 |
-| `queue` が空でなく `focused ∉ queue` | Next | 先頭へ `agent.focus`、再取得 |
-| `queue` が空でなく `focused ∈ queue` | Next | `focused` の次（末尾なら先頭）へ `agent.focus`、再取得 |
-| 任意 | Approve | 再取得する。`approvable(focused)` なら承認キーを `agent.send_keys` で送り、`(focused, seq)` を `sent` に加える。そうでなければエラー点滅 |
-| 任意 | リクエストが失敗 | エラー点滅、再取得。失敗した承認は `sent` から外す |
+| `queue` が空 | Jump | エラー点滅 |
+| `queue` が空でなく `focused ∉ queue` | Jump | 先頭へ `agent.focus`、再取得 |
+| `queue` が空でなく `focused ∈ queue` | Jump | `focused` の次（末尾なら先頭）へ `agent.focus`、再取得 |
+| 任意 | Approve | 再取得する。`approvable(focused)` なら確定キーを `agent.send_keys` で送り、`(focused, seq)` を `sent` に加える。そうでなければエラー点滅 |
+| 任意 | Select | 再取得する。`approvable(focused)` なら選択キーを `agent.send_keys` で送る。そうでなければエラー点滅 |
+| 任意 | リクエストが失敗 | エラー点滅、再取得。失敗した確定は `sent` から外す |
 
-Next は `queue` の順序を変えない。
-`queue` が1件でそれにフォーカスしていれば、Next は同じ pane に再度フォーカスする。
+Jump は `queue` の順序を変えない。
+`queue` が1件でそれにフォーカスしていれば、Jump は同じ pane に再度フォーカスする。
 
-Approve は判断の直前にスナップショットを取り直すので、判断に使う状態はリクエスト1回ぶんより古くならない。
-herdr が状態変化を報告するまでは `sent` が残るため、2回目の押下で同じプロンプトや、その後に出た別のプロンプトへ承認キーが送られることはない。
+Approve と Select は判断の直前にスナップショットを取り直すので、判断に使う状態はリクエスト1回ぶんより古くならない。
+herdr が状態変化を報告するまでは `sent` が残るため、2回目の押下で同じプロンプトや、その後に出た別のプロンプトを確定してしまうことはない。
+`sent` がある間は Select も効かないので、プロンプトが閉じたあとのエージェントの入力欄に矢印キーが入ることもない。
 
-### 承認キー
+### プロンプト用のキー
 
 herdr のエージェント ID ごとに、設定ファイルで定義する。
 
-| エージェント ID | 承認キー（初期値） |
-|---|---|
-| `claude` | `["enter"]` |
-| `codex` | `["y"]` |
+| エージェント ID | 確定キー（初期値） | 選択キー（初期値） |
+|---|---|---|
+| `claude` | `["enter"]` | `["down"]` |
+| `codex` | `["enter"]` | `["down"]` |
 
-Claude Code に `enter` を送ると、そのときハイライトされている選択肢が選ばれる。
+どちらのエージェントも、承認プロンプトは矢印キーでハイライトが動き `enter` で確定するリストになっている。
+Codex は `y` も受け付けるが、`y` はハイライトの位置に関係なく「yes」を選ぶので使わない。
 
 ## LED
 
 常時の表示は `(conn, device, len(queue), approvable(focused))` の関数で決まる。
 キー押下に対する1回きりの点滅を、その上に重ねる。
 
-| 状態 | Jump | Approve | Next |
+| 状態 | Jump | Approve | Select |
 |---|---|---|---|
 | `Disconnected` | 赤・遅い点滅 | 赤・遅い点滅 | 赤・遅い点滅 |
 | `Incompatible` | 赤・点灯 | 赤・点灯 | 赤・点灯 |
 | `queue` が空 | 消灯 | 消灯 | 消灯 |
-| `queue` が1件 | 琥珀・呼吸 | `approvable(focused)` なら緑、それ以外は消灯 | 消灯 |
-| `queue` が2件以上 | 赤寄りの琥珀・呼吸 | 同上 | 青 |
+| `queue` が1件 | 琥珀・呼吸 | `approvable(focused)` なら緑、それ以外は消灯 | `approvable(focused)` なら青、それ以外は消灯 |
+| `queue` が2件以上 | 赤寄りの琥珀・呼吸 | 同上 | 同上 |
 
 点滅:
 
@@ -252,7 +257,7 @@ USB CDC-ACM 上でやりとりする。
 
 ## 未規定
 
-- 長押しの割り当て（候補: Approve 長押しで「今後も許可」、Next 長押しで `esc` による拒否）
+- 長押しの割り当て
 - `done` の表示
 - Approve が効くまでに、pane が承認可能な状態で留まるべき最短時間。
   質問 UI が出た瞬間に、すでに押しかけていた Approve がそれに答えてしまうのを防ぐためのもの

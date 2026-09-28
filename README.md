@@ -2,7 +2,7 @@
 
 English | [日本語](docs/ja/README.md)
 
-A three-key RP2040-Keyboard-3 for herdr agents waiting on approval: one key jumps to the waiting pane, one approves it, one moves to the next. The RGB LED under each key shows what is waiting.
+A three-key RP2040-Keyboard-3 for herdr agents waiting on approval: one key jumps between the waiting panes, one moves the highlight through the prompt's options, and one confirms the highlighted option. The RGB LED under each key shows what is waiting and which keys would act.
 
 ## Documents
 
