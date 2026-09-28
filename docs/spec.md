@@ -200,12 +200,18 @@ CDC serial and `drooling::PicotoolReset`, built with `usb_rev(Usb210)`, `max_pac
 
 ## firmware ↔ bridge protocol
 
-Carried over USB CDC. The message types live in the `protocol` crate.
+Carried over USB CDC-ACM. Each message is serialised with postcard, COBS-encoded, and terminated by `0x00` (ADR 0005). The types live in the `protocol` crate, and keys and LEDs are named by position (`Left`, `Middle`, `Right`), not by GPIO or chain index.
 
-- Device to host: key number, and whether it went down or up
-- Host to device: a full LED frame (colour and mode for each of the three LEDs), and one-shot flashes
+| Direction | Message | Meaning |
+|---|---|---|
+| device → host | `Ready { protocol }` | Sent once on leaving `NoHost`, with the protocol version the firmware speaks |
+| device → host | `Key { pos, edge }` | A key went `Down` or `Up` |
+| host → device | `Frame([Led; 3])` | Colour and mode (`Off`, `Solid`, `Breathe`, `Blink`) of every LED, left to right |
+| host → device | `Flash { pos, rgb }` | Flash one key's LED once |
 
-`bridge` sends a full frame on every change and at least once per second. On opening the port it sets DTR, discards any input already buffered, and sends a full frame before reading key events.
+A decoder that meets a frame it cannot decode, or one longer than the protocol's maximum, reports an error for that frame and resumes at the next `0x00`.
+
+`bridge` sends a full frame on every change and at least once per second. On opening the port it sets DTR, discards any input already buffered, and sends a full frame. It ignores key events until it has received `Ready` with its own protocol version; on a different version it closes the port and reports the mismatch.
 
 ## Dependencies
 
@@ -218,7 +224,6 @@ Carried over USB CDC. The message types live in the `protocol` crate.
 
 ## Unspecified
 
-- Wire format (text lines or binary frames)
 - Long-press actions (candidates: long Approve for "always allow", long Next to reject with `esc`)
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
