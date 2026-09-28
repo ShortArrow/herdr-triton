@@ -67,8 +67,17 @@ pub mod palette {
     pub const WHITE: Rgb = Rgb { r: 255, g: 255, b: 255 };
 }
 
-/// Approval keys per herdr agent id.
-pub type ApprovalKeys = HashMap<String, Vec<String>>;
+/// The keys that drive an agent's approval prompt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromptKeys {
+    /// Confirms the highlighted option (Approve).
+    pub confirm: Vec<String>,
+    /// Moves the highlight to the next option (Select).
+    pub select: Vec<String>,
+}
+
+/// Prompt keys per herdr agent id.
+pub type AgentKeys = HashMap<String, PromptKeys>;
 
 /// A blocked agent waiting in the queue.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,13 +87,29 @@ struct Entry {
     state_change_seq: u64,
 }
 
+/// A key that acts on the focused prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PromptAction {
+    Confirm,
+    Select,
+}
+
+impl PromptAction {
+    fn position(self) -> Position {
+        match self {
+            PromptAction::Confirm => Position::Middle,
+            PromptAction::Select => Position::Right,
+        }
+    }
+}
+
 /// What the bridge is waiting for between messages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Pending {
     None,
-    /// Approve was pressed; the refreshed snapshot decides.
-    ApproveRefresh,
-    /// A request from `pos` is in flight; `sent` is the approval it recorded.
+    /// A prompt key was pressed; the refreshed snapshot decides.
+    Refresh(PromptAction),
+    /// A request from `pos` is in flight; `sent` is the confirmation it recorded.
     Request {
         pos: Position,
         sent: Option<(String, u64)>,
@@ -95,7 +120,7 @@ enum Pending {
 /// every entry was blocked in the latest snapshot, and every `sent` pair
 /// matches a queue entry's pane and seq.
 pub struct State {
-    approval_keys: ApprovalKeys,
+    agent_keys: AgentKeys,
     conn: Conn,
     queue: Vec<Entry>,
     focused: Option<String>,
@@ -104,9 +129,9 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(approval_keys: ApprovalKeys) -> Self {
+    pub fn new(agent_keys: AgentKeys) -> Self {
         Self {
-            approval_keys,
+            agent_keys,
             conn: Conn::Disconnected,
             queue: Vec::new(),
             focused: None,
@@ -122,31 +147,28 @@ impl State {
                 Vec::new()
             }
             Msg::SnapshotFailed => {
-                let awaiting_approve = self.pending == Pending::ApproveRefresh;
+                let pending = std::mem::replace(&mut self.pending, Pending::None);
                 self.lose_herdr(Conn::Disconnected);
-                if awaiting_approve {
-                    error(Position::Middle)
-                } else {
-                    Vec::new()
+                match pending {
+                    Pending::Refresh(action) => error(action.position()),
+                    _ => Vec::new(),
                 }
             }
             Msg::Snapshot(agents) => {
                 self.conn = Conn::Connected;
                 self.apply_snapshot(&agents);
-                if self.pending == Pending::ApproveRefresh {
-                    self.pending = Pending::None;
-                    self.approve()
-                } else {
-                    Vec::new()
+                match std::mem::replace(&mut self.pending, Pending::None) {
+                    Pending::Refresh(action) => self.act_on_prompt(action),
+                    other => {
+                        self.pending = other;
+                        Vec::new()
+                    }
                 }
             }
             Msg::KeyDown(pos) if self.conn != Conn::Connected => error(pos),
-            Msg::KeyDown(Position::Left) => self.focus_from(Position::Left, self.head()),
-            Msg::KeyDown(Position::Right) => self.focus_from(Position::Right, self.after_focused()),
-            Msg::KeyDown(Position::Middle) => {
-                self.pending = Pending::ApproveRefresh;
-                vec![Cmd::Poll]
-            }
+            Msg::KeyDown(Position::Left) => self.jump(),
+            Msg::KeyDown(Position::Middle) => self.refresh_for(PromptAction::Confirm),
+            Msg::KeyDown(Position::Right) => self.refresh_for(PromptAction::Select),
             Msg::RequestDone { ok } => self.finish_request(ok),
         }
     }
@@ -164,12 +186,11 @@ impl State {
                     1 => Led { rgb: palette::AMBER, mode: Mode::Breathe },
                     _ => Led { rgb: palette::REDDISH_AMBER, mode: Mode::Breathe },
                 };
-                let approve = match self.approvable() {
-                    Some(_) => solid(palette::GREEN),
-                    None => dark,
+                let (approve, select) = match self.approvable() {
+                    Some(_) => (solid(palette::GREEN), solid(palette::BLUE)),
+                    None => (dark, dark),
                 };
-                let next = if self.queue.len() >= 2 { solid(palette::BLUE) } else { dark };
-                [jump, approve, next]
+                [jump, approve, select]
             }
         }
     }
@@ -205,16 +226,13 @@ impl State {
             .retain(|(pane, seq)| queue.iter().any(|e| &e.pane_id == pane && e.state_change_seq == *seq));
     }
 
-    fn head(&self) -> Option<String> {
-        self.queue.first().map(|e| e.pane_id.clone())
-    }
-
     /// The entry after the focused one, cycling; the head if focus is elsewhere.
-    fn after_focused(&self) -> Option<String> {
-        match self.focused_index() {
-            Some(i) => Some(self.queue[(i + 1) % self.queue.len()].pane_id.clone()),
-            None => self.head(),
-        }
+    fn jump_target(&self) -> Option<String> {
+        let index = match self.focused_index() {
+            Some(i) => (i + 1) % self.queue.len(),
+            None => 0,
+        };
+        self.queue.get(index).map(|e| e.pane_id.clone())
     }
 
     fn focused_index(&self) -> Option<usize> {
@@ -222,20 +240,25 @@ impl State {
         self.queue.iter().position(|e| e.pane_id == focused)
     }
 
-    fn focus_from(&mut self, pos: Position, target: Option<String>) -> Vec<Cmd> {
-        match target {
+    fn jump(&mut self) -> Vec<Cmd> {
+        match self.jump_target() {
             Some(pane_id) => {
-                self.pending = Pending::Request { pos, sent: None };
+                self.pending = Pending::Request { pos: Position::Left, sent: None };
                 vec![Cmd::Focus { pane_id }]
             }
-            None => error(pos),
+            None => error(Position::Left),
         }
     }
 
-    /// The focused queue entry and its approval keys, if Approve would act.
-    fn approvable(&self) -> Option<(&Entry, &Vec<String>)> {
+    fn refresh_for(&mut self, action: PromptAction) -> Vec<Cmd> {
+        self.pending = Pending::Refresh(action);
+        vec![Cmd::Poll]
+    }
+
+    /// The focused queue entry and its prompt keys, if Approve and Select would act.
+    fn approvable(&self) -> Option<(&Entry, &PromptKeys)> {
         let entry = &self.queue[self.focused_index()?];
-        let keys = self.approval_keys.get(entry.agent.as_deref()?)?;
+        let keys = self.agent_keys.get(entry.agent.as_deref()?)?;
         let already_sent = self
             .sent
             .iter()
@@ -243,15 +266,21 @@ impl State {
         (!already_sent).then_some((entry, keys))
     }
 
-    fn approve(&mut self) -> Vec<Cmd> {
+    fn act_on_prompt(&mut self, action: PromptAction) -> Vec<Cmd> {
+        let pos = action.position();
         let Some((entry, keys)) = self.approvable() else {
-            return error(Position::Middle);
+            return error(pos);
         };
-        let mark = (entry.pane_id.clone(), entry.state_change_seq);
-        let cmd = Cmd::SendKeys { pane_id: entry.pane_id.clone(), keys: keys.clone() };
-        self.sent.push(mark.clone());
-        self.pending = Pending::Request { pos: Position::Middle, sent: Some(mark) };
-        vec![cmd]
+        let pane_id = entry.pane_id.clone();
+        let (keys, sent) = match action {
+            PromptAction::Confirm => (keys.confirm.clone(), Some((pane_id.clone(), entry.state_change_seq))),
+            PromptAction::Select => (keys.select.clone(), None),
+        };
+        if let Some(mark) = &sent {
+            self.sent.push(mark.clone());
+        }
+        self.pending = Pending::Request { pos, sent };
+        vec![Cmd::SendKeys { pane_id, keys }]
     }
 
     fn finish_request(&mut self, ok: bool) -> Vec<Cmd> {

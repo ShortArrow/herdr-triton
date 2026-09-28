@@ -1,4 +1,4 @@
-use bridge::state::{palette::*, Agent, ApprovalKeys, Cmd, Msg, State, Status};
+use bridge::state::{palette::*, Agent, AgentKeys, Cmd, Msg, PromptKeys, State, Status};
 use protocol::{Led, Mode, Position, Position::*};
 
 fn agent(pane: &str, status: Status, seq: u64) -> Agent {
@@ -20,10 +20,14 @@ fn focused(mut a: Agent) -> Agent {
     a
 }
 
-fn keys() -> ApprovalKeys {
+fn prompt_keys(confirm: &str, select: &str) -> PromptKeys {
+    PromptKeys { confirm: vec![confirm.into()], select: vec![select.into()] }
+}
+
+fn keys() -> AgentKeys {
     [
-        ("claude".to_string(), vec!["enter".to_string()]),
-        ("codex".to_string(), vec!["y".to_string()]),
+        ("claude".to_string(), prompt_keys("enter", "down")),
+        ("custom".to_string(), prompt_keys("space", "tab")),
     ]
     .into()
 }
@@ -48,14 +52,26 @@ fn led(rgb: protocol::Rgb, mode: Mode) -> Led {
 
 const DARK: Led = Led { rgb: OFF, mode: Mode::Off };
 
-/// Presses Approve and answers its refresh with `snapshot`.
-fn approve(s: &mut State, snapshot: Vec<Agent>) -> Vec<Cmd> {
-    assert_eq!(s.update(Msg::KeyDown(Middle)), vec![Cmd::Poll]);
+/// Presses `pos` and answers its refresh with `snapshot`.
+fn press_after_refresh(s: &mut State, pos: Position, snapshot: Vec<Agent>) -> Vec<Cmd> {
+    assert_eq!(s.update(Msg::KeyDown(pos)), vec![Cmd::Poll]);
     s.update(Msg::Snapshot(snapshot))
 }
 
+fn approve(s: &mut State, snapshot: Vec<Agent>) -> Vec<Cmd> {
+    press_after_refresh(s, Middle, snapshot)
+}
+
+fn select(s: &mut State, snapshot: Vec<Agent>) -> Vec<Cmd> {
+    press_after_refresh(s, Right, snapshot)
+}
+
+fn send(pane: &str, key: &str) -> Vec<Cmd> {
+    vec![Cmd::SendKeys { pane_id: pane.into(), keys: vec![key.into()] }]
+}
+
 fn send_enter(pane: &str) -> Vec<Cmd> {
-    vec![Cmd::SendKeys { pane_id: pane.into(), keys: vec!["enter".into()] }]
+    send(pane, "enter")
 }
 
 mod snapshot {
@@ -122,8 +138,35 @@ mod jump {
     use super::*;
 
     #[test]
-    fn focuses_the_head() {
-        let mut s = with(vec![blocked("a"), blocked("b")]);
+    fn with_focus_outside_the_queue_focuses_the_head() {
+        let mut s = with(vec![blocked("a"), blocked("b"), focused(agent("x", Status::Idle, 1))]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+    }
+
+    #[test]
+    fn focuses_the_entry_after_the_focused_one() {
+        let mut s = with(vec![blocked("a"), focused(blocked("b")), blocked("c")]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("c"));
+    }
+
+    #[test]
+    fn wraps_from_the_tail_to_the_head() {
+        let mut s = with(vec![blocked("a"), blocked("b"), focused(blocked("c"))]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+    }
+
+    #[test]
+    fn with_a_single_focused_entry_focuses_it_again() {
+        let mut s = with(vec![focused(blocked("a"))]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+    }
+
+    #[test]
+    fn does_not_reorder_the_queue() {
+        let mut s = with(vec![focused(blocked("a")), blocked("b")]);
+        s.update(Msg::KeyDown(Left));
+        s.update(Msg::RequestDone { ok: true });
+        s.update(Msg::Snapshot(vec![blocked("a"), blocked("b")]));
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
     }
 
@@ -154,49 +197,6 @@ mod jump {
     }
 }
 
-mod next {
-    use super::*;
-
-    #[test]
-    fn with_focus_outside_the_queue_focuses_the_head() {
-        let mut s = with(vec![blocked("a"), blocked("b"), focused(agent("x", Status::Idle, 1))]);
-        assert_eq!(s.update(Msg::KeyDown(Right)), focus("a"));
-    }
-
-    #[test]
-    fn focuses_the_entry_after_the_focused_one() {
-        let mut s = with(vec![blocked("a"), focused(blocked("b")), blocked("c")]);
-        assert_eq!(s.update(Msg::KeyDown(Right)), focus("c"));
-    }
-
-    #[test]
-    fn wraps_from_the_tail_to_the_head() {
-        let mut s = with(vec![blocked("a"), blocked("b"), focused(blocked("c"))]);
-        assert_eq!(s.update(Msg::KeyDown(Right)), focus("a"));
-    }
-
-    #[test]
-    fn with_a_single_focused_entry_focuses_it_again() {
-        let mut s = with(vec![focused(blocked("a"))]);
-        assert_eq!(s.update(Msg::KeyDown(Right)), focus("a"));
-    }
-
-    #[test]
-    fn does_not_reorder_the_queue() {
-        let mut s = with(vec![focused(blocked("a")), blocked("b")]);
-        s.update(Msg::KeyDown(Right));
-        s.update(Msg::RequestDone { ok: true });
-        s.update(Msg::Snapshot(vec![blocked("a"), focused(blocked("b"))]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
-    }
-
-    #[test]
-    fn with_an_empty_queue_flashes_an_error() {
-        let mut s = with(vec![]);
-        assert_eq!(s.update(Msg::KeyDown(Right)), error(Right));
-    }
-}
-
 mod approve {
     use super::*;
 
@@ -207,14 +207,11 @@ mod approve {
     }
 
     #[test]
-    fn uses_the_keys_configured_for_the_agent() {
+    fn uses_the_confirm_keys_configured_for_the_agent() {
         let mut s = with(vec![]);
-        let mut codex = focused(blocked("a"));
-        codex.agent = Some("codex".into());
-        assert_eq!(
-            approve(&mut s, vec![codex]),
-            vec![Cmd::SendKeys { pane_id: "a".into(), keys: vec!["y".into()] }]
-        );
+        let mut custom = focused(blocked("a"));
+        custom.agent = Some("custom".into());
+        assert_eq!(approve(&mut s, vec![custom]), send("a", "space"));
     }
 
     #[test]
@@ -300,6 +297,76 @@ mod approve {
     }
 }
 
+mod select {
+    use super::*;
+
+    #[test]
+    fn refreshes_then_sends_the_agents_select_keys_to_the_focused_blocked_pane() {
+        let mut s = with(vec![]);
+        assert_eq!(select(&mut s, vec![blocked("a"), focused(blocked("b"))]), send("b", "down"));
+    }
+
+    #[test]
+    fn uses_the_select_keys_configured_for_the_agent() {
+        let mut s = with(vec![]);
+        let mut custom = focused(blocked("a"));
+        custom.agent = Some("custom".into());
+        assert_eq!(select(&mut s, vec![custom]), send("a", "tab"));
+    }
+
+    #[test]
+    fn with_focus_outside_the_queue_flashes_an_error() {
+        let mut s = with(vec![]);
+        assert_eq!(
+            select(&mut s, vec![blocked("a"), focused(agent("x", Status::Idle, 1))]),
+            error(Right)
+        );
+    }
+
+    #[test]
+    fn for_an_agent_without_configured_keys_flashes_an_error() {
+        let mut s = with(vec![]);
+        let mut other = focused(blocked("a"));
+        other.agent = Some("pi".into());
+        assert_eq!(select(&mut s, vec![other]), error(Right));
+    }
+
+    #[test]
+    fn can_be_repeated_and_leaves_approve_available() {
+        let mut s = with(vec![]);
+        assert_eq!(select(&mut s, vec![focused(blocked("a"))]), send("a", "down"));
+        s.update(Msg::RequestDone { ok: true });
+        assert_eq!(select(&mut s, vec![focused(blocked("a"))]), send("a", "down"));
+        s.update(Msg::RequestDone { ok: true });
+        assert_eq!(approve(&mut s, vec![focused(blocked("a"))]), send_enter("a"));
+    }
+
+    #[test]
+    fn after_a_confirmation_flashes_an_error_until_the_seq_changes() {
+        let mut s = with(vec![]);
+        approve(&mut s, vec![focused(blocked("a"))]);
+        s.update(Msg::RequestDone { ok: true });
+        assert_eq!(select(&mut s, vec![focused(blocked("a"))]), error(Right));
+    }
+
+    #[test]
+    fn a_failed_refresh_flashes_an_error() {
+        let mut s = with(vec![focused(blocked("a"))]);
+        assert_eq!(s.update(Msg::KeyDown(Right)), vec![Cmd::Poll]);
+        assert_eq!(s.update(Msg::SnapshotFailed), error(Right));
+    }
+
+    #[test]
+    fn a_successful_send_flashes_white_and_refreshes() {
+        let mut s = with(vec![]);
+        select(&mut s, vec![focused(blocked("a"))]);
+        assert_eq!(
+            s.update(Msg::RequestDone { ok: true }),
+            vec![Cmd::Flash { pos: Right, rgb: WHITE }, Cmd::Poll]
+        );
+    }
+}
+
 mod disconnected {
     use super::*;
 
@@ -349,33 +416,31 @@ mod frame {
     }
 
     #[test]
-    fn two_waiting_breathe_reddish_amber_and_light_next() {
+    fn two_waiting_breathe_reddish_amber() {
         assert_eq!(
             with(vec![blocked("a"), blocked("b")]).frame(),
-            [led(REDDISH_AMBER, Mode::Breathe), DARK, led(BLUE, Mode::Solid)]
+            [led(REDDISH_AMBER, Mode::Breathe), DARK, DARK]
         );
     }
 
     #[test]
-    fn approve_is_green_when_the_focused_pane_is_approvable() {
-        assert_eq!(
-            with(vec![focused(blocked("a"))]).frame()[1],
-            led(GREEN, Mode::Solid)
-        );
+    fn approve_is_green_and_select_blue_when_the_focused_pane_is_approvable() {
+        let frame = with(vec![focused(blocked("a"))]).frame();
+        assert_eq!(frame[1..], [led(GREEN, Mode::Solid), led(BLUE, Mode::Solid)]);
     }
 
     #[test]
-    fn approve_is_dark_after_an_approval_until_the_seq_changes() {
+    fn approve_and_select_are_dark_after_a_confirmation_until_the_seq_changes() {
         let mut s = with(vec![]);
         approve(&mut s, vec![focused(blocked("a"))]);
         s.update(Msg::RequestDone { ok: true });
-        assert_eq!(s.frame()[1], DARK);
+        assert_eq!(s.frame()[1..], [DARK, DARK]);
     }
 
     #[test]
-    fn approve_is_dark_for_an_agent_without_configured_keys() {
+    fn approve_and_select_are_dark_for_an_agent_without_configured_keys() {
         let mut other = focused(blocked("a"));
         other.agent = Some("pi".into());
-        assert_eq!(with(vec![other]).frame()[1], DARK);
+        assert_eq!(with(vec![other]).frame()[1..], [DARK, DARK]);
     }
 }
