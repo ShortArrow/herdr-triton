@@ -33,6 +33,14 @@ mod requests {
     }
 
     #[test]
+    fn agent_read_asks_for_the_visible_screen_as_plain_text() {
+        assert_eq!(
+            encoded(&Request::AgentRead { target: "w1:p2".into() }),
+            json!({"id": "r1", "method": "agent.read", "params": {"target": "w1:p2", "source": "visible"}})
+        );
+    }
+
+    #[test]
     fn agent_send_keys() {
         assert_eq!(
             encoded(&Request::AgentSendKeys { target: "w1:p2".into(), keys: vec!["down".into()] }),
@@ -116,6 +124,15 @@ mod responses {
                 state_change_seq: 6,
             }))
         );
+    }
+
+    #[test]
+    fn pane_read_carries_the_screen_text() {
+        let got = decode(json!({"id": "r1", "result": {"type": "pane_read", "read": {
+            "pane_id": "w1:p1", "workspace_id": "w1", "tab_id": "w1:t1", "source": "visible",
+            "format": "text", "text": " ❯ 1. Yes\n   2. No", "revision": 4, "truncated": false
+        }}}));
+        assert_eq!(got, Ok(Response::Screen(" ❯ 1. Yes\n   2. No".into())));
     }
 
     #[test]

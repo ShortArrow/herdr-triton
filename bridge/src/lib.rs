@@ -2,4 +2,5 @@
 //! and the serial device drive it.
 
 pub mod herdr;
+pub mod prompt_screen;
 pub mod state;

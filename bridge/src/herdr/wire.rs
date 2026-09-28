@@ -13,6 +13,8 @@ pub enum Request {
     AgentList,
     AgentFocus { target: String },
     AgentSendKeys { target: String, keys: Vec<String> },
+    /// The visible screen, as plain text.
+    AgentRead { target: String },
 }
 
 /// The responses the bridge understands.
@@ -22,6 +24,8 @@ pub enum Response {
     Agents(Vec<Agent>),
     /// The reply to `agent.focus`: the agent now focused.
     Agent(Agent),
+    /// The reply to `agent.read`: the screen text.
+    Screen(String),
     Ok,
     Error { code: String, message: String },
 }
@@ -47,6 +51,7 @@ pub fn encode_request(id: &str, request: &Request) -> String {
         Request::AgentSendKeys { target, keys } => {
             ("agent.send_keys", json!({ "target": target, "keys": keys }))
         }
+        Request::AgentRead { target } => ("agent.read", json!({ "target": target, "source": "visible" })),
     };
     let mut line = json!({ "id": id, "method": method, "params": params }).to_string();
     line.push('\n');
@@ -72,7 +77,13 @@ enum KnownResult {
     Pong { version: String },
     AgentList { agents: Vec<AgentInfo> },
     AgentInfo { agent: AgentInfo },
+    PaneRead { read: ReadText },
     Ok {},
+}
+
+#[derive(Deserialize)]
+struct ReadText {
+    text: String,
 }
 
 #[derive(Deserialize)]
@@ -102,6 +113,7 @@ impl From<KnownResult> for Response {
             KnownResult::Pong { version } => Response::Pong { version },
             KnownResult::AgentList { agents } => Response::Agents(agents.into_iter().map(Agent::from).collect()),
             KnownResult::AgentInfo { agent } => Response::Agent(agent.into()),
+            KnownResult::PaneRead { read } => Response::Screen(read.text),
             KnownResult::Ok {} => Response::Ok,
         }
     }
@@ -133,7 +145,7 @@ pub fn decode_response(line: &str) -> Result<Response, WireError> {
         Envelope::Success { result } => {
             match result.get("type").and_then(Value::as_str) {
                 None => Err(WireError::Malformed("result has no type".into())),
-                Some("pong" | "agent_list" | "agent_info" | "ok") => {
+                Some("pong" | "agent_list" | "agent_info" | "pane_read" | "ok") => {
                     Ok(serde_json::from_value::<KnownResult>(result).map_err(malformed)?.into())
                 }
                 Some(other) => Err(WireError::Unexpected(other.to_owned())),
