@@ -187,7 +187,24 @@ The firmware is in `NoHost` while DTR is low, or when no frame has arrived from 
 - discards key events instead of queueing them
 - shows a dim white on all three LEDs
 
-It leaves `NoHost` on the next full LED frame.
+It leaves `NoHost` on the next full LED frame, and then sends `Ready`. A frame that arrives while DTR is low does not leave `NoHost`.
+
+### Keys
+
+A key reports `Down` or `Up` once its level has stayed the same for 5 ms.
+
+### Rendering
+
+| Mode or state | Output |
+|---|---|
+| `Solid` | The colour |
+| `Off` | Dark |
+| `Blink` | The colour for 500 ms, dark for 500 ms |
+| `Breathe` | The colour, its brightness rising from 10 % to 100 % and back over 2 s |
+| `Flash` | The flash colour on that key for 150 ms, over whatever it showed |
+| `NoHost` | White at 8/255 on all three |
+
+Every colour is scaled so that full brightness is 64/255; WS2812s at full power are uncomfortable to look at. The LEDs take RGB and `ws2812-pio` sends GRB, so the firmware swaps red and green last.
 
 ### Invariants
 
