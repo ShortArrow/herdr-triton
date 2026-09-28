@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["firmware", "protocol"]
+members = ["bridge", "firmware", "protocol"]
 # firmware builds only for thumbv6m-none-eabi; see the aliases in .cargo/config.toml.
-default-members = ["protocol"]
+default-members = ["bridge", "protocol"]
 
 [profile.release]
 debug = 2

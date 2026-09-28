@@ -155,7 +155,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 | `queue` が空でなく `focused ∉ queue` | Next | 先頭へ `agent.focus`、再取得 |
 | `queue` が空でなく `focused ∈ queue` | Next | `focused` の次（末尾なら先頭）へ `agent.focus`、再取得 |
 | 任意 | Approve | 再取得する。`approvable(focused)` なら承認キーを `agent.send_keys` で送り、`(focused, seq)` を `sent` に加える。そうでなければエラー点滅 |
-| 任意 | リクエストが失敗 | エラー点滅、再取得 |
+| 任意 | リクエストが失敗 | エラー点滅、再取得。失敗した承認は `sent` から外す |
 
 Next は `queue` の順序を変えない。
 `queue` が1件でそれにフォーカスしていれば、Next は同じ pane に再度フォーカスする。

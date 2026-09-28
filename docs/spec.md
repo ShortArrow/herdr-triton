@@ -140,7 +140,7 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` a
 | `queue` not empty, `focused ∉ queue` | Next | `agent.focus` the head, refresh |
 | `queue` not empty, `focused ∈ queue` | Next | `agent.focus` the entry after `focused`, cycling, refresh |
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the approval keys and add `(focused, seq)` to `sent`; otherwise error flash |
-| any | a request fails | error flash, refresh |
+| any | a request fails | error flash, refresh. A failed approval is removed from `sent` |
 
 Next does not reorder `queue`. When `queue` has one entry and it is focused, Next focuses it again.
 
