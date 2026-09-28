@@ -80,6 +80,7 @@ herdr は自分の pane の中で `HERDR_SOCKET_PATH` を設定する。
 | `agent.list` | 全エージェントの状態。`pane_id`, `agent`, `agent_status`, `focused`, `state_change_seq` を使う |
 | `agent.focus {target}` | Jump。ワークスペースとタブを切り替えて pane にフォーカスする。応答は `ok` ではなく `agent_info` |
 | `agent.send_keys {target, keys}` | Approve と Select。pane にいるエージェントが入れ替わっていれば herdr が拒否する |
+| `agent.read {target, source: "visible"}` | リストが折り返さないエージェントでの Select。ハイライトの位置を知るために画面を読む |
 
 `events.subscribe` は使わない（ADR 0004）。
 
@@ -124,7 +125,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 |---|---|---|
 | 左 | Jump | 承認待ちの pane を移動する。`queue` の先頭か、フォーカス中の pane の次へ |
 | 中 | Approve | フォーカス中のプロンプトで、ハイライトされている選択肢を確定する |
-| 右 | Select | フォーカス中のプロンプトで、ハイライトを次の選択肢へ動かす |
+| 右 | Select | フォーカス中のプロンプトで、ハイライトを次の選択肢へ動かす。最後の次は最初 |
 
 承認するなら Jump、Approve の順に押す。
 拒否など別の選択肢にするなら、それがハイライトされるまで Select を押してから Approve を押す（ADR 0006）。
@@ -184,7 +185,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 | `queue` が空でなく `focused ∉ queue` | Jump | 先頭へ `agent.focus`、再取得 |
 | `queue` が空でなく `focused ∈ queue` | Jump | `focused` の次（末尾なら先頭）へ `agent.focus`、再取得 |
 | 任意 | Approve | 再取得する。`approvable(focused)` なら確定キーを `agent.send_keys` で送り、`(focused, seq)` を `sent` に加える。そうでなければエラー点滅 |
-| 任意 | Select | 再取得する。`approvable(focused)` なら選択キーを `agent.send_keys` で送る。そうでなければエラー点滅 |
+| 任意 | Select | 再取得する。`approvable(focused)` なら「プロンプト用のキー」のとおりにハイライトを動かす。そうでなければエラー点滅 |
 | 任意 | リクエストが失敗 | エラー点滅、再取得。失敗した確定は `sent` から外す |
 
 Jump は `queue` の順序を変えない。
@@ -198,10 +199,21 @@ herdr が状態変化を報告するまでは `sent` が残るため、2回目�
 
 herdr のエージェント ID ごとに、設定ファイルで定義する。
 
-| エージェント ID | 確定キー（初期値） | 選択キー（初期値） |
-|---|---|---|
-| `claude` | `["enter"]` | `["down"]` |
-| `codex` | `["enter"]` | `["down"]` |
+| エージェント ID | 確定キー（初期値） | 選択キー（初期値） | リストの折り返し | 戻りキー（初期値） |
+|---|---|---|---|---|
+| `claude` | `["enter"]` | `["down"]` | しない | `["up"]` |
+| `codex` | `["enter"]` | `["down"]` | する | |
+
+Codex のリストは、最後の選択肢で `down` を押すと最初に戻る（openai/codex `1cc7e23`、`scroll_state.rs` の `move_down_wrap`）。
+Claude Code のリストは最後で止まる。
+リストが折り返さないエージェントでは、Select は `agent.read` で pane の画面を読み、番号付きの選択肢とハイライトの位置を見つける（ADR 0010）。
+
+| Given | Then |
+|---|---|
+| ハイライトが `n` 個（`n ≥ 2`）の選択肢の最後にある | 戻りキーを `n − 1` 回送る |
+| それ以外、画面にハイライト付きの番号リストが無い、または `agent.read` が失敗した | 選択キーを送る |
+
+画面を使うのは Select がハイライトをどこへ動かすかの判断だけで、Approve で確定してよいかの判断には使わない。
 
 どちらのエージェントも、承認プロンプトは矢印キーでハイライトが動き `enter` で確定するリストになっている。
 Codex は `y` も受け付けるが、`y` はハイライトの位置に関係なく「yes」を選ぶので使わない。

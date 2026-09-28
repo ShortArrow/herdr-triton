@@ -45,6 +45,8 @@ pub enum Msg {
     RequestDone {
         ok: bool,
     },
+    /// The screen `Cmd::ReadScreen` asked for; `None` if it could not be read.
+    Screen(Option<String>),
 }
 
 /// Outputs of [`State::update`], executed in order by the runtime.
@@ -54,6 +56,8 @@ pub enum Cmd {
     Focus { pane_id: String },
     SendKeys { pane_id: String, keys: Vec<String> },
     Flash { pos: Position, rgb: Rgb },
+    /// Read the pane's visible screen, answered with `Msg::Screen`.
+    ReadScreen { pane_id: String },
 }
 
 /// Colours the bridge shows.
@@ -88,6 +92,17 @@ pub struct PromptKeys {
     pub confirm: Vec<String>,
     /// Moves the highlight to the next option (Select).
     pub select: Vec<String>,
+    pub wrap: Wrap,
+}
+
+/// How Select gets from an agent's last option back to its first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Wrap {
+    /// The select keys wrap on their own.
+    Native,
+    /// The list stops at its last option: read the screen, and from the
+    /// last option send `back` once per option above it (ADR 0010).
+    ByScreen { back: Vec<String> },
 }
 
 /// Prompt keys per herdr agent id.
@@ -123,6 +138,8 @@ enum Pending {
     None,
     /// A prompt key was pressed; the refreshed snapshot decides.
     Refresh(PromptAction),
+    /// Select is waiting for the screen of `pane_id` to choose its keys.
+    Screen { pane_id: String, keys: PromptKeys },
     /// A request from `pos` is in flight; `sent` is the confirmation it recorded.
     Request {
         pos: Position,
@@ -184,6 +201,7 @@ impl State {
             Msg::KeyDown(Position::Middle) => self.refresh_for(PromptAction::Confirm),
             Msg::KeyDown(Position::Right) => self.refresh_for(PromptAction::Select),
             Msg::RequestDone { ok } => self.finish_request(ok),
+            Msg::Screen(screen) => self.select_on_screen(screen.as_deref()),
         }
     }
 
@@ -323,12 +341,37 @@ impl State {
                 keys.confirm.clone(),
                 Some((pane_id.clone(), entry.state_change_seq)),
             ),
+            PromptAction::Select if keys.wrap != Wrap::Native => {
+                self.pending = Pending::Screen { pane_id: pane_id.clone(), keys: keys.clone() };
+                return vec![Cmd::ReadScreen { pane_id }];
+            }
             PromptAction::Select => (keys.select.clone(), None),
         };
         if let Some(mark) = &sent {
             self.sent.push(mark.clone());
         }
         self.pending = Pending::Request { pos, sent };
+        vec![Cmd::SendKeys { pane_id, keys }]
+    }
+
+    /// Sends Select's keys once the screen is known: back to the first
+    /// option from the last of a list, down otherwise (ADR 0010).
+    fn select_on_screen(&mut self, screen: Option<&str>) -> Vec<Cmd> {
+        let Pending::Screen { pane_id, keys } = std::mem::replace(&mut self.pending, Pending::None)
+        else {
+            return Vec::new();
+        };
+        let at_last = screen.and_then(crate::prompt_screen::parse).and_then(|p| {
+            let last = p.options.last()?.0;
+            (last >= 2 && p.highlighted == Some(last)).then_some(last)
+        });
+        let keys = match (at_last, &keys.wrap) {
+            (Some(n), Wrap::ByScreen { back }) => {
+                back.iter().cloned().cycle().take(back.len() * (n - 1) as usize).collect()
+            }
+            _ => keys.select,
+        };
+        self.pending = Pending::Request { pos: Position::Right, sent: None };
         vec![Cmd::SendKeys { pane_id, keys }]
     }
 

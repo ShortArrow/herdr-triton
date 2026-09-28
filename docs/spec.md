@@ -67,6 +67,7 @@ herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from 
 | `agent.list` | Snapshot of every agent: `pane_id`, `agent`, `agent_status`, `focused`, `state_change_seq` |
 | `agent.focus {target}` | Jump. Switches workspace and tab and focuses the pane. Replies with `agent_info`, not `ok` |
 | `agent.send_keys {target, keys}` | Approve and Select. herdr rejects it if the pane no longer hosts the same agent |
+| `agent.read {target, source: "visible"}` | Select, for an agent whose list does not wrap: the screen, to find the highlight |
 
 `bridge` does not use `events.subscribe`. See ADR 0004.
 
@@ -110,7 +111,7 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 |---|---|---|
 | left | Jump | Move between waiting panes: the head of `queue`, or the entry after the focused one |
 | middle | Approve | Confirm the highlighted option of the focused prompt |
-| right | Select | Move the highlight of the focused prompt to the next option |
+| right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first |
 
 To approve, press Jump, then Approve. To pick another option, such as rejecting, press Select until it is highlighted, then Approve. See ADR 0006.
 
@@ -161,7 +162,7 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` a
 | `queue` not empty, `focused ∉ queue` | Jump | `agent.focus` the head, refresh |
 | `queue` not empty, `focused ∈ queue` | Jump | `agent.focus` the entry after `focused`, cycling, refresh |
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
-| any | Select | Refresh. If `approvable(focused)`, `agent.send_keys` the select keys; otherwise error flash |
+| any | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys"; otherwise error flash |
 | any | a request fails | error flash, refresh. A failed confirmation is removed from `sent` |
 
 Jump does not reorder `queue`. When `queue` has one entry and it is focused, Jump focuses it again.
@@ -172,10 +173,19 @@ Approve and Select refresh the snapshot right before deciding, so the decision u
 
 Keyed by herdr's agent id, in a configuration file.
 
-| Agent id | Confirm keys (default) | Select keys (default) |
-|---|---|---|
-| `claude` | `["enter"]` | `["down"]` |
-| `codex` | `["enter"]` | `["down"]` |
+| Agent id | Confirm keys (default) | Select keys (default) | List wraps | Back keys (default) |
+|---|---|---|---|---|
+| `claude` | `["enter"]` | `["down"]` | no | `["up"]` |
+| `codex` | `["enter"]` | `["down"]` | yes | |
+
+Codex's list moves from its last option to its first on `down` (openai/codex `1cc7e23`, `scroll_state.rs`, `move_down_wrap`); Claude Code's stops at the last. For an agent whose list does not wrap, Select reads the pane's visible screen with `agent.read` and finds the numbered options and the highlighted one (ADR 0010):
+
+| Given | Then |
+|---|---|
+| The highlight is on the last of `n` options, `n ≥ 2` | Send the back keys `n − 1` times |
+| Otherwise, or the screen shows no highlighted numbered list, or `agent.read` fails | Send the select keys |
+
+The screen decides only where Select moves the highlight; whether Approve may confirm never depends on it.
 
 Both agents show their approval prompts as a list whose highlight moves with the arrow keys and is confirmed with `enter`. Codex also accepts `y`, but `y` picks "yes" whatever is highlighted, so it is not used.
 

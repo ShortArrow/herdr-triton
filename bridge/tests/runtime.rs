@@ -6,7 +6,7 @@ use std::io;
 use bridge::herdr::client::CallError;
 use bridge::herdr::wire::{Request, Response};
 use bridge::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime};
-use bridge::state::{palette, Agent, AgentKeys, PromptKeys, Status};
+use bridge::state::{palette, Agent, AgentKeys, PromptKeys, Status, Wrap};
 use protocol::{Edge, Led, Mode, Position, Rgb};
 
 #[derive(Default)]
@@ -15,12 +15,20 @@ struct FakeHerdr {
     agents: Vec<Agent>,
     reachable: bool,
     refuse: bool,
+    screen: String,
     requests: Vec<Request>,
 }
 
 impl FakeHerdr {
     fn new(agents: Vec<Agent>) -> Self {
-        Self { version: "0.9.1".into(), agents, reachable: true, refuse: false, requests: Vec::new() }
+        Self {
+            version: "0.9.1".into(),
+            agents,
+            reachable: true,
+            refuse: false,
+            screen: String::new(),
+            requests: Vec::new(),
+        }
     }
 }
 
@@ -41,6 +49,7 @@ impl Herdr for FakeHerdr {
                 Response::Agent(a)
             }
             Request::AgentSendKeys { .. } => Response::Ok,
+            Request::AgentRead { .. } => Response::Screen(self.screen.clone()),
             other => panic!("unexpected {other:?}"),
         })
     }
@@ -82,7 +91,12 @@ fn blocked(pane: &str, focused: bool) -> Agent {
 }
 
 fn keys() -> AgentKeys {
-    [("claude".to_string(), PromptKeys { confirm: vec!["enter".into()], select: vec!["down".into()] })].into()
+    let keys = |wrap| PromptKeys { confirm: vec!["enter".into()], select: vec!["down".into()], wrap };
+    [
+        ("claude".to_string(), keys(Wrap::Native)),
+        ("stopper".to_string(), keys(Wrap::ByScreen { back: vec!["up".into()] })),
+    ]
+    .into()
 }
 
 fn started(agents: Vec<Agent>, mode: RunMode) -> Runtime<FakeHerdr, FakeKeys> {
@@ -162,6 +176,25 @@ mod keys_to_herdr {
             [
                 Request::AgentList,
                 Request::AgentSendKeys { target: "a".into(), keys: vec!["enter".into()] },
+                Request::AgentList,
+            ]
+        );
+    }
+
+    #[test]
+    fn select_on_a_non_wrapping_agent_reads_the_screen_then_goes_back_from_the_last() {
+        let mut stopper = blocked("a", true);
+        stopper.agent = Some("stopper".into());
+        let mut rt = started(vec![stopper], RunMode::Run);
+        rt.herdr_mut().screen = "   1. Yes\n   2. Always\n ❯ 3. No\n".into();
+        rt.keys_mut().events.push_back((Position::Right, Edge::Down));
+        rt.tick(10).unwrap();
+        assert_eq!(
+            rt.herdr().requests[2..],
+            [
+                Request::AgentList,
+                Request::AgentRead { target: "a".into() },
+                Request::AgentSendKeys { target: "a".into(), keys: vec!["up".into(), "up".into()] },
                 Request::AgentList,
             ]
         );

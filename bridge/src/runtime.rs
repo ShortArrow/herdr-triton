@@ -142,6 +142,12 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
                     let reply = self.herdr.call(&Request::AgentSendKeys { target: pane_id, keys });
                     Msg::RequestDone { ok: matches!(reply, Ok(Response::Ok)) }
                 }
+                Cmd::ReadScreen { pane_id } => {
+                    match self.herdr.call(&Request::AgentRead { target: pane_id }) {
+                        Ok(Response::Screen(text)) => Msg::Screen(Some(text)),
+                        _ => Msg::Screen(None),
+                    }
+                }
                 Cmd::Flash { pos, rgb } => {
                     self.keys.flash(pos, rgb).map_err(|_| Exit::DeviceLost)?;
                     continue;

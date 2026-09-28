@@ -1,9 +1,9 @@
 //! Reads an agent's approval prompt off its screen text: the numbered
 //! options and which one is highlighted.
 //!
-//! This depends on how each agent draws its prompt, so it serves
-//! diagnostics (`herdr_probe read`) only; the bridge's decisions do not use
-//! it (ADR 0003).
+//! This depends on how each agent draws its prompt, so it only ever decides
+//! where Select moves a highlight (ADR 0010) and what `herdr_probe read`
+//! prints; whether Approve may confirm never depends on it (ADR 0003).
 
 /// The options of the last numbered list on a screen.
 #[derive(Debug, Clone, PartialEq, Eq)]

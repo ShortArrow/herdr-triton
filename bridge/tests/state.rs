@@ -1,4 +1,4 @@
-use bridge::state::{palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status};
+use bridge::state::{palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status, Wrap};
 use protocol::{Led, Mode, Position, Position::*};
 
 fn agent(pane: &str, status: Status, seq: u64) -> Agent {
@@ -24,6 +24,7 @@ fn prompt_keys(confirm: &str, select: &str) -> PromptKeys {
     PromptKeys {
         confirm: vec![confirm.into()],
         select: vec![select.into()],
+        wrap: Wrap::Native,
     }
 }
 
@@ -31,6 +32,10 @@ fn keys() -> AgentKeys {
     [
         ("claude".to_string(), prompt_keys("enter", "down")),
         ("custom".to_string(), prompt_keys("space", "tab")),
+        (
+            "stopper".to_string(),
+            PromptKeys { wrap: Wrap::ByScreen { back: vec!["up".into()] }, ..prompt_keys("enter", "down") },
+        ),
     ]
     .into()
 }
@@ -466,6 +471,85 @@ mod observation {
         assert_eq!(s.conn(), Conn::Connected);
         s.update(Msg::Incompatible);
         assert_eq!(s.conn(), Conn::Incompatible);
+    }
+}
+
+mod select_by_screen {
+    use super::*;
+
+    fn stopper(pane: &str) -> Agent {
+        let mut a = focused(blocked(pane));
+        a.agent = Some("stopper".into());
+        a
+    }
+
+    /// A prompt with `n` options and the highlight on `at`.
+    fn prompt(n: u32, at: u32) -> String {
+        (1..=n)
+            .map(|i| format!(" {} {i}. option {i}\n", if i == at { "❯" } else { " " }))
+            .collect()
+    }
+
+    fn keys_of(pane: &str, keys: &[&str]) -> Vec<Cmd> {
+        vec![Cmd::SendKeys { pane_id: pane.into(), keys: keys.iter().map(|k| k.to_string()).collect() }]
+    }
+
+    /// Presses Select on a non-wrapping agent and answers the screen read.
+    fn select_with_screen(s: &mut State, screen: Option<String>) -> Vec<Cmd> {
+        assert_eq!(select(s, vec![stopper("a")]), vec![Cmd::ReadScreen { pane_id: "a".into() }]);
+        s.update(Msg::Screen(screen))
+    }
+
+    #[test]
+    fn from_the_last_option_goes_back_to_the_first() {
+        let mut s = with(vec![]);
+        assert_eq!(select_with_screen(&mut s, Some(prompt(6, 6))), keys_of("a", &["up"; 5]));
+    }
+
+    #[test]
+    fn from_any_other_option_moves_down() {
+        let mut s = with(vec![]);
+        assert_eq!(select_with_screen(&mut s, Some(prompt(3, 2))), keys_of("a", &["down"]));
+    }
+
+    #[test]
+    fn a_single_option_moves_down() {
+        let mut s = with(vec![]);
+        assert_eq!(select_with_screen(&mut s, Some(prompt(1, 1))), keys_of("a", &["down"]));
+    }
+
+    #[test]
+    fn a_screen_without_a_highlighted_list_moves_down() {
+        let mut s = with(vec![]);
+        assert_eq!(select_with_screen(&mut s, Some("working...\n".into())), keys_of("a", &["down"]));
+    }
+
+    #[test]
+    fn a_failed_read_moves_down() {
+        let mut s = with(vec![]);
+        assert_eq!(select_with_screen(&mut s, None), keys_of("a", &["down"]));
+    }
+
+    #[test]
+    fn a_successful_send_flashes_the_select_key_white_and_refreshes() {
+        let mut s = with(vec![]);
+        select_with_screen(&mut s, Some(prompt(3, 3)));
+        assert_eq!(
+            s.update(Msg::RequestDone { ok: true }),
+            vec![Cmd::Flash { pos: Right, rgb: WHITE }, Cmd::Poll]
+        );
+    }
+
+    #[test]
+    fn a_screen_nobody_asked_for_is_ignored() {
+        let mut s = with(vec![stopper("a")]);
+        assert_eq!(s.update(Msg::Screen(Some(prompt(3, 3)))), vec![]);
+    }
+
+    #[test]
+    fn approve_never_reads_the_screen() {
+        let mut s = with(vec![]);
+        assert_eq!(approve(&mut s, vec![stopper("a")]), send_enter("a"));
     }
 }
 

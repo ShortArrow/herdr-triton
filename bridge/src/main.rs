@@ -20,7 +20,7 @@ use bridge::device::{find_port, Device};
 use bridge::herdr::client::Client;
 use bridge::herdr::socket_path::{for_session, resolve, Platform};
 use bridge::runtime::{Exit, Mode, Runtime};
-use bridge::state::{AgentKeys, PromptKeys};
+use bridge::state::{AgentKeys, PromptKeys, Wrap};
 use protocol::scpi::PROTOCOL_VERSION;
 
 /// How long a hook keeps trying a port another bridge holds.
@@ -119,10 +119,15 @@ fn open(name: &str, mode: Mode) -> Option<Box<dyn serialport::SerialPort>> {
     }
 }
 
-/// The built-in prompt keys (specification, "Prompt keys").
+/// The built-in prompt keys (specification, "Prompt keys"): Codex's list
+/// wraps, Claude Code's stops at its last option (ADR 0010).
 fn prompt_keys() -> AgentKeys {
-    let keys = || PromptKeys { confirm: vec!["enter".into()], select: vec!["down".into()] };
-    [("claude".to_string(), keys()), ("codex".to_string(), keys())].into()
+    let keys = |wrap| PromptKeys { confirm: vec!["enter".into()], select: vec!["down".into()], wrap };
+    [
+        ("claude".to_string(), keys(Wrap::ByScreen { back: vec!["up".into()] })),
+        ("codex".to_string(), keys(Wrap::Native)),
+    ]
+    .into()
 }
 
 fn take_option(args: &mut Vec<String>, name: &str) -> Option<String> {
