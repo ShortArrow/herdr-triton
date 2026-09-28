@@ -46,6 +46,7 @@ name = "bridge"
 version = "0.1.0"
 dependencies = [
  "interprocess",
+ "keypad",
  "protocol",
  "serde",
  "serde_json",
