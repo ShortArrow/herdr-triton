@@ -1,4 +1,4 @@
-use bridge::state::{palette::*, Agent, AgentKeys, Cmd, Msg, PromptKeys, State, Status};
+use bridge::state::{palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status};
 use protocol::{Led, Mode, Position, Position::*};
 
 fn agent(pane: &str, status: Status, seq: u64) -> Agent {
@@ -446,6 +446,26 @@ mod select {
                 Cmd::Poll
             ]
         );
+    }
+}
+
+mod observation {
+    use super::*;
+
+    #[test]
+    fn waiting_counts_the_queue() {
+        assert_eq!(with(vec![]).waiting(), 0);
+        assert_eq!(with(vec![blocked("a"), agent("b", Status::Idle, 1), blocked("c")]).waiting(), 2);
+    }
+
+    #[test]
+    fn conn_follows_herdr() {
+        let mut s = State::new(keys());
+        assert_eq!(s.conn(), Conn::Disconnected);
+        s.update(Msg::Snapshot(vec![]));
+        assert_eq!(s.conn(), Conn::Connected);
+        s.update(Msg::Incompatible);
+        assert_eq!(s.conn(), Conn::Incompatible);
     }
 }
 

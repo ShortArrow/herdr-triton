@@ -187,6 +187,15 @@ impl State {
         }
     }
 
+    /// How many agents are waiting.
+    pub fn waiting(&self) -> usize {
+        self.queue.len()
+    }
+
+    pub fn conn(&self) -> Conn {
+        self.conn
+    }
+
     /// The steady LED output, left to right.
     pub fn frame(&self) -> [Led; 3] {
         let dark = Led {
