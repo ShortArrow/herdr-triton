@@ -288,3 +288,4 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 - Clearing `sent` when herdr never reports a state change after an approval
 - Which client's view `focused` reflects when several herdr clients are attached
 - Several devices at once
+- A network transport: CDC-NCM with raw SCPI on TCP port 5025, reachable from VISA as `TCPIP::<address>::5025::SOCKET` and from telnet or nc. It waits for `drooling` to support `embassy-usb`, which has an NCM class; the SCPI commands and their parser stay as they are
