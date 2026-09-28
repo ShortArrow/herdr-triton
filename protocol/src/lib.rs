@@ -3,6 +3,8 @@
 
 #![no_std]
 
+pub mod scpi;
+
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// The protocol version carried in [`DeviceMessage::Ready`].
