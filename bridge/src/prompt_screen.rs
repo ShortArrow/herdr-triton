@@ -16,8 +16,9 @@ pub struct PromptOptions {
 /// Markers the agents put before the highlighted option.
 const MARKERS: [char; 2] = ['❯', '›'];
 
-/// The last numbered list on `screen`, or none. A list is a run of
-/// consecutive lines numbered from 1.
+/// The last numbered list on `screen`, or none. A list starts at an option
+/// numbered 1 and runs through options numbered one more each time; other
+/// lines between them, such as descriptions and rules, do not end it.
 pub fn parse(screen: &str) -> Option<PromptOptions> {
     let mut last: Option<PromptOptions> = None;
     let mut current: Option<PromptOptions> = None;
@@ -37,7 +38,9 @@ pub fn parse(screen: &str) -> Option<PromptOptions> {
                     list.highlighted = Some(n);
                 }
             }
-            _ => last = current.take().or(last),
+            // Descriptions and rules between options keep the list open.
+            None => {}
+            Some(_) => last = current.take().or(last),
         }
     }
     current.or(last)
