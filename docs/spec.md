@@ -70,8 +70,6 @@ herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from 
 | `agent.focus {target}` | Jump. Switches workspace and tab and focuses the pane. Replies with `agent_info`, not `ok` |
 | `agent.send_keys {target, keys}` | Approve and Select. herdr rejects it if the pane no longer hosts the same agent |
 | `agent.read {target, source: "visible"}` | Select, for an agent whose list does not wrap: the screen, to find the highlight |
-| `workspace.list` | Jump with nothing waiting or done: every workspace and which one is focused |
-| `workspace.focus {workspace_id}` | Jump with nothing waiting or done. Replies with `workspace_info` |
 
 `bridge` does not use `events.subscribe`. See ADR 0004.
 
@@ -113,7 +111,7 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 
 | Position | Name | Action |
 |---|---|---|
-| left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between workspaces (ADR 0011) |
+| left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between every agent (ADR 0011) |
 | middle | Approve | Confirm the highlighted option of the focused prompt |
 | right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first |
 
@@ -129,6 +127,7 @@ To approve, press Jump, then Approve. To pick another option, such as rejecting,
 | `focused` | `pane_id` or none | The agent pane herdr reports as `focused` |
 | `sent` | set of `(pane_id, state_change_seq)` | Confirmations sent and not yet followed by a state change |
 | `done` | sequence of `pane_id` | Agents in `done`, finished and not yet seen, in `agent.list` order |
+| `agents` | sequence of `pane_id` | Every agent, in `agent.list` order |
 
 Invariants:
 
@@ -154,7 +153,7 @@ Key events and snapshots are handled one at a time in a single loop. A key press
 | Entry in `queue`, still `blocked`, `state_change_seq` changed | Keep its position, update `agent` and `state_change_seq` |
 | `blocked` in the snapshot, not in `queue` | Append it. On the first snapshot after connecting, append in `agent.list` order |
 | any | `focused` = the agent with `focused: true`, or none |
-| any | `done` = the agents in `done` |
+| any | `done` = the agents in `done`; `agents` = every agent |
 | any | Drop from `sent` every entry that no longer matches `queue` |
 
 A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` and `sent`. `bridge` keeps retrying.
@@ -167,7 +166,7 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` a
 | `queue` not empty, `focused ∉ queue` | Jump | `agent.focus` the head, refresh |
 | `queue` not empty, `focused ∈ queue` | Jump | `agent.focus` the entry after `focused`, cycling, refresh |
 | `queue` empty, `done` not empty | Jump | as the two rows above, over `done` |
-| `queue` and `done` empty | Jump | `workspace.list`, then `workspace.focus` the workspace after the focused one, cycling; error flash if the list fails or is empty |
+| `queue` and `done` empty | Jump | as the first two rows, over `agents`; error flash if there are none |
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
 | any | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys"; otherwise error flash |
 | any | a request fails | error flash, refresh. A failed confirmation is removed from `sent` |
@@ -205,7 +204,7 @@ The steady LED output is a function of `(conn, device, len(queue), len(done), ap
 | `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
 | `Incompatible` | red, solid | red, solid | red, solid |
 | `queue` empty, `done` not empty | green, breathing | off | off |
-| `queue` and `done` empty | white, solid, until the listener exits and the device shows `NoHost` | off | off |
+| `queue` and `done` empty | white, solid (Jump cycles every agent), until the listener exits and the device shows `NoHost` | off | off |
 | `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
 | `queue` has 2 or more | reddish amber, breathing | as above | as above |
 

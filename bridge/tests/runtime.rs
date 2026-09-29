@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::io;
 
 use bridge::herdr::client::CallError;
-use bridge::herdr::wire::{Node, Request, Response};
+use bridge::herdr::wire::{Request, Response};
 use bridge::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime};
 use bridge::state::{palette, Agent, AgentKeys, PromptKeys, Status, Wrap};
 use protocol::{Edge, Led, Mode, Position, Rgb};
@@ -16,7 +16,6 @@ struct FakeHerdr {
     reachable: bool,
     refuse: bool,
     screen: String,
-    workspaces: Vec<(String, bool)>,
     requests: Vec<Request>,
 }
 
@@ -28,7 +27,6 @@ impl FakeHerdr {
             reachable: true,
             refuse: false,
             screen: String::new(),
-            workspaces: Vec::new(),
             requests: Vec::new(),
         }
     }
@@ -42,7 +40,7 @@ impl Herdr for FakeHerdr {
         }
         let reads = matches!(
             request,
-            Request::Ping | Request::AgentList | Request::WorkspaceList | Request::AgentRead { .. }
+            Request::Ping | Request::AgentList | Request::AgentRead { .. }
         );
         if self.refuse && !reads {
             return Ok(Response::Error {
@@ -66,19 +64,6 @@ impl Herdr for FakeHerdr {
             }
             Request::AgentSendKeys { .. } => Response::Ok,
             Request::AgentRead { .. } => Response::Screen(self.screen.clone()),
-            Request::WorkspaceList => Response::Workspaces(
-                self.workspaces
-                    .iter()
-                    .map(|(id, focused)| Node {
-                        id: id.clone(),
-                        focused: *focused,
-                    })
-                    .collect(),
-            ),
-            Request::WorkspaceFocus { workspace_id } => Response::Workspace(Node {
-                id: workspace_id.clone(),
-                focused: true,
-            }),
             other => panic!("unexpected {other:?}"),
         })
     }
@@ -264,32 +249,19 @@ mod keys_to_herdr {
     }
 
     #[test]
-    fn jump_with_nothing_waiting_or_done_moves_to_the_next_workspace() {
-        let mut rt = started(vec![], RunMode::Run);
-        rt.herdr_mut().workspaces = vec![("w1".into(), true), ("w2".into(), false)];
+    fn jump_with_nothing_waiting_or_done_moves_to_the_next_agent() {
+        let mut idle = blocked("a", true);
+        idle.status = Status::Idle;
+        let mut working = blocked("b", false);
+        working.status = Status::Working;
+        let mut rt = started(vec![idle, working], RunMode::Run);
         rt.keys_mut().events.push_back((Position::Left, Edge::Down));
         rt.tick(10).unwrap();
         assert_eq!(
             rt.herdr().requests[2..],
-            [
-                Request::WorkspaceList,
-                Request::WorkspaceFocus {
-                    workspace_id: "w2".into()
-                },
-                Request::AgentList,
-            ]
+            [Request::AgentFocus { target: "b".into() }, Request::AgentList]
         );
         assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::WHITE)]);
-    }
-
-    #[test]
-    fn a_refused_workspace_focus_flashes_red() {
-        let mut rt = started(vec![], RunMode::Run);
-        rt.herdr_mut().workspaces = vec![("w1".into(), true), ("w2".into(), false)];
-        rt.herdr_mut().refuse = true;
-        rt.keys_mut().events.push_back((Position::Left, Edge::Down));
-        rt.tick(10).unwrap();
-        assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::RED)]);
     }
 
     #[test]

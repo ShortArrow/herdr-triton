@@ -47,15 +47,6 @@ pub enum Msg {
     },
     /// The screen `Cmd::ReadScreen` asked for; `None` if it could not be read.
     Screen(Option<String>),
-    /// The workspaces `Cmd::ListWorkspaces` asked for; `None` on failure.
-    Workspaces(Option<Vec<Workspace>>),
-}
-
-/// A herdr workspace and whether it is on screen.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Workspace {
-    pub id: String,
-    pub focused: bool,
 }
 
 /// Outputs of [`State::update`], executed in order by the runtime.
@@ -76,11 +67,6 @@ pub enum Cmd {
     /// Read the pane's visible screen, answered with `Msg::Screen`.
     ReadScreen {
         pane_id: String,
-    },
-    /// List every workspace, answered with `Msg::Workspaces`.
-    ListWorkspaces,
-    FocusWorkspace {
-        workspace_id: String,
     },
 }
 
@@ -162,8 +148,6 @@ enum Pending {
     None,
     /// A prompt key was pressed; the refreshed snapshot decides.
     Refresh(PromptAction),
-    /// Jump found nothing waiting or done and is waiting for the workspaces.
-    Workspaces,
     /// Select is waiting for the screen of `pane_id` to choose its keys.
     Screen {
         pane_id: String,
@@ -187,6 +171,8 @@ pub struct State {
     sent: Vec<(String, u64)>,
     /// Agents that have finished and not been seen, in `agent.list` order.
     done: Vec<String>,
+    /// Every agent, in `agent.list` order.
+    agents: Vec<String>,
     pending: Pending,
 }
 
@@ -199,6 +185,7 @@ impl State {
             focused: None,
             sent: Vec::new(),
             done: Vec::new(),
+            agents: Vec::new(),
             pending: Pending::None,
         }
     }
@@ -234,7 +221,6 @@ impl State {
             Msg::KeyDown(Position::Right) => self.refresh_for(PromptAction::Select),
             Msg::RequestDone { ok } => self.finish_request(ok),
             Msg::Screen(screen) => self.select_on_screen(screen.as_deref()),
-            Msg::Workspaces(workspaces) => self.jump_to_workspace(workspaces),
         }
     }
 
@@ -299,6 +285,7 @@ impl State {
         self.conn = conn;
         self.queue.clear();
         self.done.clear();
+        self.agents.clear();
         self.focused = None;
         self.sent.clear();
         self.pending = Pending::None;
@@ -327,6 +314,7 @@ impl State {
             .filter(|a| a.status == Status::Done)
             .map(|a| a.pane_id.clone())
             .collect();
+        self.agents = agents.iter().map(|a| a.pane_id.clone()).collect();
         let queue = &self.queue;
         self.sent.retain(|(pane, seq)| {
             queue
@@ -349,16 +337,17 @@ impl State {
         self.queue.iter().position(|e| e.pane_id == focused)
     }
 
-    /// Jump's tiers (ADR 0011): waiting agents, then done ones, then workspaces.
+    /// Jump's tiers (ADR 0011): waiting agents, then done ones, then every agent.
     fn jump(&mut self) -> Vec<Cmd> {
-        let target = self.jump_target().or_else(|| {
-            let done: Vec<&str> = self.done.iter().map(String::as_str).collect();
-            next_after(&done, self.focused.as_deref())
-        });
-        if target.is_none() {
-            self.pending = Pending::Workspaces;
-            return vec![Cmd::ListWorkspaces];
-        }
+        let focused = self.focused.as_deref();
+        let within = |ids: &[String]| {
+            let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+            next_after(&ids, focused)
+        };
+        let target = self
+            .jump_target()
+            .or_else(|| within(&self.done))
+            .or_else(|| within(&self.agents));
         match target {
             Some(pane_id) => {
                 self.pending = Pending::Request {
@@ -366,26 +355,6 @@ impl State {
                     sent: None,
                 };
                 vec![Cmd::Focus { pane_id }]
-            }
-            None => error(Position::Left),
-        }
-    }
-
-    fn jump_to_workspace(&mut self, workspaces: Option<Vec<Workspace>>) -> Vec<Cmd> {
-        if self.pending != Pending::Workspaces {
-            return Vec::new();
-        }
-        self.pending = Pending::None;
-        let workspaces = workspaces.unwrap_or_default();
-        let ids: Vec<&str> = workspaces.iter().map(|w| w.id.as_str()).collect();
-        let focused = workspaces.iter().find(|w| w.focused).map(|w| w.id.as_str());
-        match next_after(&ids, focused) {
-            Some(workspace_id) => {
-                self.pending = Pending::Request {
-                    pos: Position::Left,
-                    sent: None,
-                };
-                vec![Cmd::FocusWorkspace { workspace_id }]
             }
             None => error(Position::Left),
         }

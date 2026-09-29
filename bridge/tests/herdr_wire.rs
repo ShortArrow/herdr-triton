@@ -70,16 +70,6 @@ mod requests {
     }
 
     #[test]
-    fn workspace_focus() {
-        assert_eq!(
-            encoded(&Request::WorkspaceFocus {
-                workspace_id: "w2".into()
-            }),
-            json!({"id": "r1", "method": "workspace.focus", "params": {"workspace_id": "w2"}})
-        );
-    }
-
-    #[test]
     fn pane_list_of_one_workspace() {
         assert_eq!(
             encoded(&Request::PaneList {
@@ -121,17 +111,6 @@ mod responses {
                 node("wY", true)
             ]))
         );
-    }
-
-    #[test]
-    fn workspace_info_is_the_reply_to_workspace_focus() {
-        let got = decode(
-            json!({"id": "r1", "result": {"type": "workspace_info", "workspace":
-                {"workspace_id": "w2", "number": 2, "label": "b", "focused": true, "pane_count": 1,
-                 "tab_count": 1, "active_tab_id": "w2:t1", "agent_status": "idle"}
-            }}),
-        );
-        assert_eq!(got, Ok(Response::Workspace(node("w2", true))));
     }
 
     #[test]

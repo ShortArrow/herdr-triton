@@ -1,5 +1,5 @@
 use bridge::state::{
-    palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status, Workspace, Wrap,
+    palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status, Wrap,
 };
 use protocol::{Led, Mode, Position, Position::*};
 
@@ -163,11 +163,7 @@ mod snapshot {
         s.update(Msg::SnapshotFailed);
         assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
         s.update(Msg::Snapshot(vec![]));
-        assert_eq!(
-            s.update(Msg::KeyDown(Left)),
-            vec![Cmd::ListWorkspaces],
-            "queue emptied"
-        );
+        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left), "no agents left");
     }
 }
 
@@ -212,9 +208,9 @@ mod jump {
     }
 
     #[test]
-    fn with_nothing_waiting_or_done_lists_the_workspaces() {
-        let mut s = with(vec![agent("a", Status::Idle, 1)]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), vec![Cmd::ListWorkspaces]);
+    fn with_nothing_waiting_or_done_focuses_the_first_agent() {
+        let mut s = with(vec![agent("a", Status::Idle, 1), agent("b", Status::Working, 1)]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
     }
 
     #[test]
@@ -632,82 +628,35 @@ mod jump_to_done {
     }
 }
 
-mod jump_to_workspaces {
+mod jump_to_agents {
     use super::*;
 
-    fn ws(id: &str, focused: bool) -> Workspace {
-        Workspace {
-            id: id.into(),
-            focused,
-        }
+    #[test]
+    fn cycles_from_the_focused_agent_whatever_its_status() {
+        let mut s = with(vec![
+            agent("a", Status::Idle, 1),
+            focused(agent("b", Status::Working, 1)),
+            agent("c", Status::Unknown, 1),
+        ]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("c"));
     }
 
-    fn listed(workspaces: Option<Vec<Workspace>>) -> Vec<Cmd> {
+    #[test]
+    fn wraps_from_the_last_agent_to_the_first() {
+        let mut s = with(vec![agent("a", Status::Idle, 1), focused(agent("b", Status::Idle, 1))]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+    }
+
+    #[test]
+    fn with_no_agents_flashes_an_error() {
         let mut s = with(vec![]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), vec![Cmd::ListWorkspaces]);
-        s.update(Msg::Workspaces(workspaces))
+        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
     }
 
     #[test]
-    fn focuses_the_workspace_after_the_focused_one() {
-        assert_eq!(
-            listed(Some(vec![ws("w1", false), ws("w2", true), ws("w3", false)])),
-            vec![Cmd::FocusWorkspace {
-                workspace_id: "w3".into()
-            }]
-        );
-    }
-
-    #[test]
-    fn wraps_from_the_last_workspace_to_the_first() {
-        assert_eq!(
-            listed(Some(vec![ws("w1", false), ws("w2", true)])),
-            vec![Cmd::FocusWorkspace {
-                workspace_id: "w1".into()
-            }]
-        );
-    }
-
-    #[test]
-    fn with_no_workspace_focused_focuses_the_first() {
-        assert_eq!(
-            listed(Some(vec![ws("w1", false), ws("w2", false)])),
-            vec![Cmd::FocusWorkspace {
-                workspace_id: "w1".into()
-            }]
-        );
-    }
-
-    #[test]
-    fn an_empty_or_failed_list_flashes_an_error() {
-        assert_eq!(listed(Some(vec![])), error(Left));
-        assert_eq!(listed(None), error(Left));
-    }
-
-    #[test]
-    fn a_successful_focus_flashes_white_and_refreshes() {
-        let mut s = with(vec![]);
-        s.update(Msg::KeyDown(Left));
-        s.update(Msg::Workspaces(Some(vec![ws("w1", true), ws("w2", false)])));
-        assert_eq!(
-            s.update(Msg::RequestDone { ok: true }),
-            vec![
-                Cmd::Flash {
-                    pos: Left,
-                    rgb: WHITE
-                },
-                Cmd::Poll
-            ]
-        );
-    }
-
-    #[test]
-    fn a_list_nobody_asked_for_is_ignored() {
-        let mut s = with(vec![]);
-        assert_eq!(
-            s.update(Msg::Workspaces(Some(vec![ws("w1", true)]))),
-            vec![]
-        );
+    fn done_agents_come_before_the_rest() {
+        let mut s = with(vec![agent("a", Status::Idle, 1), agent("d", Status::Done, 1)]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("d"));
     }
 }
 

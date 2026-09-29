@@ -8,7 +8,7 @@ A three-key RP2040-Keyboard-3 for herdr agents waiting on approval: one key jump
 
 | Key | Name | Does | LED |
 |---|---|---|---|
-| left | Jump | Focus the next waiting pane | amber, breathing, while anything waits |
+| left | Jump | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | amber breathing while anything waits, green breathing while agents are finished, white otherwise |
 | middle | Approve | Confirm the highlighted option | green when the focused pane can be confirmed |
 | right | Select | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
 
