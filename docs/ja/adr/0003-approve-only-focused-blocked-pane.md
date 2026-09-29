@@ -1,5 +1,7 @@
 # 0003. 承認はフォーカス中かつ blocked の pane にだけ送る
 
+[English](../../adr/0003-approve-only-focused-blocked-pane.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 

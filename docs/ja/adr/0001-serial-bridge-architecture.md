@@ -1,5 +1,7 @@
 # 0001. キーボードは HID ではなくシリアルでホストのブリッジに繋ぐ
 
+[English](../../adr/0001-serial-bridge-architecture.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 

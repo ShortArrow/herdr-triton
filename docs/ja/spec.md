@@ -1,5 +1,7 @@
 # herdr-triton 仕様
 
+[English](../spec.md) | 日本語
+
 herdr のエージェントが承認待ち（`blocked`）になったら、RP2040-Keyboard-3 の3キーでその pane へ移動し、承認し、次の承認待ちへ進む。
 各キーの RGB LED には、承認待ちの件数と、いま Approve を押せば承認が送られるかを出す。
 

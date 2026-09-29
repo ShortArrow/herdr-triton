@@ -1,5 +1,7 @@
 # 0002. ファームウェアとブリッジを Rust で書き、drooling で書き込む
 
+[English](../../adr/0002-rust-with-drooling.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 

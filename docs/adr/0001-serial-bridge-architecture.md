@@ -1,5 +1,7 @@
 # 0001. Connect the keyboard to a host bridge over serial, not as HID
 
+English | [日本語](../ja/adr/0001-serial-bridge-architecture.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 

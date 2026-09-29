@@ -1,5 +1,7 @@
 # 0007. One bridge serves one herdr session
 
+English | [日本語](../ja/adr/0007-one-session-per-bridge.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 

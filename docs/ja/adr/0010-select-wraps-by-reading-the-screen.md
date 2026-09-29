@@ -1,5 +1,7 @@
 # 0010. Select は画面を読んで最初の選択肢へ折り返す
 
+[English](../../adr/0010-select-wraps-by-reading-the-screen.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-29
 - Amends: 0006（Select が送るキー）

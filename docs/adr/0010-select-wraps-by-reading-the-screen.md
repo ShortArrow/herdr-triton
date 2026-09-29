@@ -1,5 +1,7 @@
 # 0010. Select wraps to the first option by reading the screen
 
+English | [日本語](../ja/adr/0010-select-wraps-by-reading-the-screen.md)
+
 - Status: Accepted
 - Date: 2026-09-29
 - Amends: 0006 (what Select sends)

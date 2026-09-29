@@ -1,5 +1,7 @@
 # 0009. Speak SCPI-style text over CDC-ACM
 
+English | [日本語](../ja/adr/0009-scpi-text-protocol.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 - Supersedes: 0005

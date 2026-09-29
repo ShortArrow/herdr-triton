@@ -1,5 +1,7 @@
 # 0004. イベント購読ではなく agent.list のポーリングで状態を得る
 
+[English](../../adr/0004-poll-agent-list.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 

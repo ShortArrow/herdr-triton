@@ -1,5 +1,7 @@
 # 0005. CDC-ACM 上で postcard のメッセージを COBS で区切る
 
+[English](../../adr/0005-postcard-cobs-over-cdc-acm.md) | 日本語
+
 - Status: Superseded by 0009
 - Date: 2026-09-28
 

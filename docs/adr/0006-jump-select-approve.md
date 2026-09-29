@@ -1,5 +1,7 @@
 # 0006. Jump cycles the waiting panes, Select moves the highlight, Approve confirms it
 
+English | [日本語](../ja/adr/0006-jump-select-approve.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 - Amends: 0003 (what Approve sends)

@@ -1,5 +1,7 @@
 # 0008. A herdr plugin starts the bridge as a listener that exits when idle
 
+English | [日本語](../ja/adr/0008-listener-started-by-plugin-hooks.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 

@@ -1,5 +1,7 @@
 # 0009. CDC-ACM 上で SCPI 風のテキストを使う
 
+[English](../../adr/0009-scpi-text-protocol.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 - Supersedes: 0005

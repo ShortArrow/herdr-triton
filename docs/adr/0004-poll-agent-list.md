@@ -1,5 +1,7 @@
 # 0004. Poll agent.list instead of subscribing to events
 
+English | [日本語](../ja/adr/0004-poll-agent-list.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 

@@ -1,5 +1,7 @@
 # 0008. herdr プラグインが bridge を起動し、することが無くなれば終了させる
 
+[English](../../adr/0008-listener-started-by-plugin-hooks.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 

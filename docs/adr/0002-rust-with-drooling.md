@@ -1,5 +1,7 @@
 # 0002. Write the firmware and the bridge in Rust, and flash with drooling
 
+English | [日本語](../ja/adr/0002-rust-with-drooling.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 

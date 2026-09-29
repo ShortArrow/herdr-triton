@@ -4,32 +4,74 @@ English | [日本語](docs/ja/README.md)
 
 A three-key RP2040-Keyboard-3 for herdr agents waiting on approval: one key jumps between the waiting panes, one moves the highlight through the prompt's options, and one confirms the highlighted option. The RGB LED under each key shows what is waiting and which keys would act.
 
-## Documents
+## Keys
 
-- [SPEC](docs/spec.md)
-- [ADR](docs/adr/)
+| Key | Name | Does | LED |
+|---|---|---|---|
+| left | Jump | Focus the next waiting pane | amber, breathing, while anything waits |
+| middle | Approve | Confirm the highlighted option | green when the focused pane can be confirmed |
+| right | Select | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
 
-## Flashing
+To approve, press Jump, then Approve. To pick another option, such as No, press Select until it is highlighted, then Approve. A pressed key flashes white when herdr took the request and red when it did not.
 
-`cargo probe` builds the hardware probe and flashes it with [`drool`](https://crates.io/crates/drool) (`cargo install drool`). No button is needed once the board runs firmware from this repository.
+All three LEDs dim white means no listener is running, which is normal while nothing waits. All three blinking red means herdr cannot be reached; a listener started by the plugin gives up after 5 s and the LEDs return to dim white.
 
-Before the first flash:
+## Setup
 
-1. On Windows, install WinUSB for the RP2040 BOOTSEL interface once, as [picotool's README](https://github.com/raspberrypi/picotool/blob/develop/README.md#zadig) describes: hold BOOT while plugging in, run [Zadig](https://zadig.akeo.ie), select `RP2 Boot (Interface 1)`, choose `WinUSB`, and install.
-2. With the board still in BOOTSEL, run `cargo probe`.
+### 1. Install the tools
 
-## herdr plugin
+- Rust via rustup. `rust-toolchain.toml` adds the `thumbv6m-none-eabi` target on first build
+- `cargo install flip-link drool`
+- herdr 0.9.1 or later
 
-The plugin starts `bridge hook` whenever an agent's status changes; the hook that opens the keypad's port listens until nothing has waited for 5 s (ADR 0008). It needs herdr 0.9.1 or later.
+### 2. Flash the firmware
 
-From this checkout:
+```sh
+cargo keypad
+```
+
+This builds the firmware and flashes it with [`drool`](https://crates.io/crates/drool), with no button, once the board runs firmware from this repository.
+
+The first time only:
+
+1. On Windows, install WinUSB for the RP2040 BOOTSEL interface, as [picotool's README](https://github.com/raspberrypi/picotool/blob/develop/README.md#zadig) describes: hold BOOT while plugging the board in, run [Zadig](https://zadig.akeo.ie), select `RP2 Boot (Interface 1)`, choose `WinUSB`, and install.
+2. Hold BOOT while plugging the board in, then run `cargo keypad`.
+
+Plug in one of the two USB-C ports only.
+
+### 3. Add the herdr plugin
+
+From a terminal outside herdr, in this checkout:
 
 ```sh
 cargo install --locked --path bridge --bin bridge --root .plugin
 herdr plugin link .
 ```
 
-`herdr plugin link` does not run build commands, so rebuild with the same `cargo install` after pulling. Without the plugin, `bridge run` (optionally `--session <name>`) keeps a listener running by hand. The listener logs to `bridge.log` in the plugin's state directory.
+`herdr plugin link` registers the plugin with the session the terminal reaches; set `HERDR_SESSION=<name>` first for a named session. It does not build anything, so run the same `cargo install` again after pulling.
+
+From then on herdr starts `bridge hook` whenever an agent's status changes. The hook that opens the keypad's port listens until nothing has waited for 5 s (ADR 0008).
+
+### 4. Check it
+
+- Any serial terminal at the keypad's port answers `*IDN?` with `ShortArrow,herdr-triton,<serial>,<version>`. The port's USB serial number starts with `TRITON-`
+- `bridge.log` in herdr's state directory for the plugin (`%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\` on Windows) shows each hook, the listener, and why it exited
+
+## Without the plugin
+
+`cargo run -p bridge --bin bridge -- run` keeps a listener running until you stop it. Add `--session <name>` for a named session.
+
+## Other tools
+
+| Command | Use |
+|---|---|
+| `cargo probe` | Flash `io_probe`, which lights each LED in a fixed colour and reports key presses, for checking which key and LED sit where |
+| `cargo run -p bridge --bin herdr_probe` | Print herdr's version and agents; `read select_id <pane>` prints a prompt's highlighted option |
+
+## Documents
+
+- [SPEC](docs/spec.md)
+- [ADR](docs/adr/)
 
 ## Factor
 

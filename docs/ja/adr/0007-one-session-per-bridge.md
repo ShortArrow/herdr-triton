@@ -1,5 +1,7 @@
 # 0007. 1つの bridge は herdr のセッションを1つだけ受け持つ
 
+[English](../../adr/0007-one-session-per-bridge.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 

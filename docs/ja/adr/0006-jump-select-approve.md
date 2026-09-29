@@ -1,5 +1,7 @@
 # 0006. Jump で承認待ちを巡回し、Select でハイライトを動かし、Approve で確定する
 
+[English](../../adr/0006-jump-select-approve.md) | 日本語
+
 - Status: Accepted
 - Date: 2026-09-28
 - Amends: 0003（Approve が送るキー）

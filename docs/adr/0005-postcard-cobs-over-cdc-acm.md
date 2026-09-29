@@ -1,5 +1,7 @@
 # 0005. Frame postcard messages with COBS over CDC-ACM
 
+English | [日本語](../ja/adr/0005-postcard-cobs-over-cdc-acm.md)
+
 - Status: Superseded by 0009
 - Date: 2026-09-28
 

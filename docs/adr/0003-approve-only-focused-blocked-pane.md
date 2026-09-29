@@ -1,5 +1,7 @@
 # 0003. Send approval only to the focused pane, and only when it is blocked
 
+English | [日本語](../ja/adr/0003-approve-only-focused-blocked-pane.md)
+
 - Status: Accepted
 - Date: 2026-09-28
 
