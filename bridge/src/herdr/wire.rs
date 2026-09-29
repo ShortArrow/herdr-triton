@@ -23,6 +23,9 @@ pub enum Request {
         target: String,
     },
     WorkspaceList,
+    WorkspaceFocus {
+        workspace_id: String,
+    },
     PaneList {
         workspace_id: String,
     },
@@ -47,6 +50,8 @@ pub enum Response {
     /// The reply to `agent.read`: the screen text.
     Screen(String),
     Workspaces(Vec<Node>),
+    /// The reply to `workspace.focus`: the workspace now focused.
+    Workspace(Node),
     Panes(Vec<Node>),
     Ok,
     Error {
@@ -81,7 +86,12 @@ pub fn encode_request(id: &str, request: &Request) -> String {
             json!({ "target": target, "source": "visible" }),
         ),
         Request::WorkspaceList => ("workspace.list", json!({})),
-        Request::PaneList { workspace_id } => ("pane.list", json!({ "workspace_id": workspace_id })),
+        Request::WorkspaceFocus { workspace_id } => {
+            ("workspace.focus", json!({ "workspace_id": workspace_id }))
+        }
+        Request::PaneList { workspace_id } => {
+            ("pane.list", json!({ "workspace_id": workspace_id }))
+        }
     };
     let mut line = json!({ "id": id, "method": method, "params": params }).to_string();
     line.push('\n');
@@ -109,6 +119,7 @@ enum KnownResult {
     AgentInfo { agent: AgentInfo },
     PaneRead { read: ReadText },
     WorkspaceList { workspaces: Vec<WorkspaceInfo> },
+    WorkspaceInfo { workspace: WorkspaceInfo },
     PaneList { panes: Vec<PaneInfo> },
     Ok {},
 }
@@ -163,13 +174,23 @@ impl From<KnownResult> for Response {
             KnownResult::WorkspaceList { workspaces } => Response::Workspaces(
                 workspaces
                     .into_iter()
-                    .map(|w| Node { id: w.workspace_id, focused: w.focused })
+                    .map(|w| Node {
+                        id: w.workspace_id,
+                        focused: w.focused,
+                    })
                     .collect(),
             ),
+            KnownResult::WorkspaceInfo { workspace } => Response::Workspace(Node {
+                id: workspace.workspace_id,
+                focused: workspace.focused,
+            }),
             KnownResult::PaneList { panes } => Response::Panes(
                 panes
                     .into_iter()
-                    .map(|p| Node { id: p.pane_id, focused: p.focused })
+                    .map(|p| Node {
+                        id: p.pane_id,
+                        focused: p.focused,
+                    })
                     .collect(),
             ),
             KnownResult::Ok {} => Response::Ok,
@@ -205,11 +226,12 @@ pub fn decode_response(line: &str) -> Result<Response, WireError> {
         }),
         Envelope::Success { result } => match result.get("type").and_then(Value::as_str) {
             None => Err(WireError::Malformed("result has no type".into())),
-            Some("pong" | "agent_list" | "agent_info" | "pane_read" | "workspace_list" | "pane_list" | "ok") => {
-                Ok(serde_json::from_value::<KnownResult>(result)
-                    .map_err(malformed)?
-                    .into())
-            }
+            Some(
+                "pong" | "agent_list" | "agent_info" | "pane_read" | "workspace_list"
+                | "workspace_info" | "pane_list" | "ok",
+            ) => Ok(serde_json::from_value::<KnownResult>(result)
+                .map_err(malformed)?
+                .into()),
             Some(other) => Err(WireError::Unexpected(other.to_owned())),
         },
     }

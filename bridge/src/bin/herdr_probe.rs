@@ -30,8 +30,17 @@ fn main() -> ExitCode {
 
     match args.as_slice() {
         [read, level, target] if read == "read" => {
-            let session = if level == "workspace_id" { Some(target.clone()) } else { session };
-            read_level(&Client::new(socket(session.as_deref())), level, target, json)
+            let session = if level == "workspace_id" {
+                Some(target.clone())
+            } else {
+                session
+            };
+            read_level(
+                &Client::new(socket(session.as_deref())),
+                level,
+                target,
+                json,
+            )
         }
         rest => {
             let path = socket(session.as_deref());
@@ -53,7 +62,9 @@ fn socket(session: Option<&str>) -> PathBuf {
 /// Prints the id, or the JSON position, of one level.
 fn read_level(client: &Client, level: &str, target: &str, json: bool) -> ExitCode {
     let found: Option<(Option<String>, Value)> = match level {
-        "select_id" => match client.call(&Request::AgentRead { target: target.into() }) {
+        "select_id" => match client.call(&Request::AgentRead {
+            target: target.into(),
+        }) {
             Ok(Response::Screen(text)) => {
                 let prompt = prompt_screen::parse(&text);
                 Some((
@@ -63,7 +74,9 @@ fn read_level(client: &Client, level: &str, target: &str, json: bool) -> ExitCod
             }
             other => fail(other),
         },
-        "pane_id" => match client.call(&Request::PaneList { workspace_id: target.into() }) {
+        "pane_id" => match client.call(&Request::PaneList {
+            workspace_id: target.into(),
+        }) {
             Ok(Response::Panes(panes)) => {
                 let id = position::pane_id(&panes);
                 if let (Err(not_active), false) = (&id, json) {
@@ -132,11 +145,16 @@ fn inspect(client: &Client, rest: &[String]) -> ExitCode {
     }
     match rest {
         [cmd, target, keys @ ..] if cmd == "send" && !keys.is_empty() => {
-            let request = Request::AgentSendKeys { target: target.clone(), keys: keys.to_vec() };
+            let request = Request::AgentSendKeys {
+                target: target.clone(),
+                keys: keys.to_vec(),
+            };
             println!("send_keys: {:?}", client.call(&request));
         }
         [cmd, target] if cmd == "focus" => {
-            let request = Request::AgentFocus { target: target.clone() };
+            let request = Request::AgentFocus {
+                target: target.clone(),
+            };
             println!("focus: {:?}", client.call(&request));
         }
         _ => {}

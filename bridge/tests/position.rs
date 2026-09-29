@@ -36,7 +36,10 @@ mod select_id {
 
     #[test]
     fn is_the_highlighted_option_number() {
-        assert_eq!(select_id(parse("   1. Yes\n ❯ 2. No\n").as_ref()), Some("2".into()));
+        assert_eq!(
+            select_id(parse("   1. Yes\n ❯ 2. No\n").as_ref()),
+            Some("2".into())
+        );
     }
 
     #[test]
@@ -53,8 +56,14 @@ mod pane {
 
     fn panes() -> Vec<Node> {
         vec![
-            Node { id: "w1:p1".into(), focused: false },
-            Node { id: "w1:p2".into(), focused: true },
+            Node {
+                id: "w1:p1".into(),
+                focused: false,
+            },
+            Node {
+                id: "w1:p2".into(),
+                focused: true,
+            },
         ]
     }
 
@@ -77,7 +86,10 @@ mod pane {
 
     #[test]
     fn json_names_the_workspace_the_focused_pane_and_every_pane() {
-        assert_eq!(pane_json("w1", &panes()), json!({"w": "1", "p": "2", "panes": ["1", "2"]}));
+        assert_eq!(
+            pane_json("w1", &panes()),
+            json!({"w": "1", "p": "2", "panes": ["1", "2"]})
+        );
     }
 }
 
@@ -88,8 +100,14 @@ mod workspace {
 
     fn workspaces() -> Vec<Node> {
         vec![
-            Node { id: "w1".into(), focused: false },
-            Node { id: "wY".into(), focused: true },
+            Node {
+                id: "w1".into(),
+                focused: false,
+            },
+            Node {
+                id: "wY".into(),
+                focused: true,
+            },
         ]
     }
 
@@ -108,7 +126,10 @@ mod workspace {
 
     #[test]
     fn json_has_a_null_workspace_when_none_is_focused() {
-        let none = vec![Node { id: "w1".into(), focused: false }];
+        let none = vec![Node {
+            id: "w1".into(),
+            focused: false,
+        }];
         assert_eq!(
             workspace_json("default", &none),
             json!({"session": "default", "w": null, "workspaces": ["1"]})

@@ -124,5 +124,8 @@ fn reads_a_question_whose_options_have_descriptions_and_a_rule() {
 
 #[test]
 fn a_skipped_number_ends_the_list() {
-    assert_eq!(parse("  1. a\n  2. b\n  4. d\n"), options(&[(1, "a"), (2, "b")], None));
+    assert_eq!(
+        parse("  1. a\n  2. b\n  4. d\n"),
+        options(&[(1, "a"), (2, "b")], None)
+    );
 }

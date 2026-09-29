@@ -47,17 +47,27 @@ fn main() -> ExitCode {
     let ports = serialport::available_ports().unwrap_or_default();
     let Some(name) = find_port(&ports) else {
         log.line("no TRITON- keypad found");
-        return if mode == Mode::Hook { ExitCode::SUCCESS } else { ExitCode::FAILURE };
+        return if mode == Mode::Hook {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
     };
     let Some(port) = open(&name, mode) else {
         log.line(&format!("{name} is held by another bridge"));
-        return if mode == Mode::Hook { ExitCode::SUCCESS } else { ExitCode::FAILURE };
+        return if mode == Mode::Hook {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
     };
     let mut device = Device::new(port);
     match device.protocol() {
         Ok(PROTOCOL_VERSION) => {}
         other => {
-            log.line(&format!("{name}: protocol {other:?}, expected {PROTOCOL_VERSION}"));
+            log.line(&format!(
+                "{name}: protocol {other:?}, expected {PROTOCOL_VERSION}"
+            ));
             return ExitCode::FAILURE;
         }
     }
@@ -102,7 +112,12 @@ fn socket(session: Option<&str>) -> PathBuf {
 /// Opens `name` with DTR high and the input discarded. A hook retries for
 /// [`PORT_RETRY`], since the listener it replaces may be closing the port.
 fn open(name: &str, mode: Mode) -> Option<Box<dyn serialport::SerialPort>> {
-    let deadline = Instant::now() + if mode == Mode::Hook { PORT_RETRY } else { Duration::ZERO };
+    let deadline = Instant::now()
+        + if mode == Mode::Hook {
+            PORT_RETRY
+        } else {
+            Duration::ZERO
+        };
     loop {
         let opened = serialport::new(name, 115_200)
             .timeout(REPLY_TIMEOUT)
@@ -122,9 +137,18 @@ fn open(name: &str, mode: Mode) -> Option<Box<dyn serialport::SerialPort>> {
 /// The built-in prompt keys (specification, "Prompt keys"): Codex's list
 /// wraps, Claude Code's stops at its last option (ADR 0010).
 fn prompt_keys() -> AgentKeys {
-    let keys = |wrap| PromptKeys { confirm: vec!["enter".into()], select: vec!["down".into()], wrap };
+    let keys = |wrap| PromptKeys {
+        confirm: vec!["enter".into()],
+        select: vec!["down".into()],
+        wrap,
+    };
     [
-        ("claude".to_string(), keys(Wrap::ByScreen { back: vec!["up".into()] })),
+        (
+            "claude".to_string(),
+            keys(Wrap::ByScreen {
+                back: vec!["up".into()],
+            }),
+        ),
         ("codex".to_string(), keys(Wrap::Native)),
     ]
     .into()
@@ -145,7 +169,11 @@ impl Log {
         let file = std::env::var_os("HERDR_PLUGIN_STATE_DIR")
             .filter(|_| mode == Mode::Hook)
             .and_then(|dir| {
-                OpenOptions::new().create(true).append(true).open(PathBuf::from(dir).join("bridge.log")).ok()
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(PathBuf::from(dir).join("bridge.log"))
+                    .ok()
             });
         match file {
             Some(f) => Log(Box::new(f)),

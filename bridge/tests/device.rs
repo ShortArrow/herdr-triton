@@ -22,12 +22,23 @@ impl Sim {
     fn new() -> Self {
         let mut keypad = Keypad::new("TRITON-SIM", "0.0.0");
         keypad.set_dtr(true);
-        Self { keypad, now: 0, lines: LineBuffer::new(), out: VecDeque::new() }
+        Self {
+            keypad,
+            now: 0,
+            lines: LineBuffer::new(),
+            out: VecDeque::new(),
+        }
     }
 
     /// Holds a key down, then releases it, 10 ms each.
     fn tap(&mut self, pos: Position) {
-        let pressed = |p: Position| [p == Position::Left, p == Position::Middle, p == Position::Right];
+        let pressed = |p: Position| {
+            [
+                p == Position::Left,
+                p == Position::Middle,
+                p == Position::Right,
+            ]
+        };
         for _ in 0..10 {
             self.now += 1;
             self.keypad.scan(pressed(pos), self.now);
@@ -100,7 +111,11 @@ impl Read for Canned {
     }
 }
 
-const WHITE: Rgb = Rgb { r: 255, g: 255, b: 255 };
+const WHITE: Rgb = Rgb {
+    r: 255,
+    g: 255,
+    b: 255,
+};
 
 #[test]
 fn asks_the_protocol_version() {
@@ -129,19 +144,41 @@ fn reads_key_events_oldest_first_then_none() {
 #[test]
 fn shows_a_frame_and_flashes_a_key() {
     let mut dev = Device::new(Sim::new());
-    dev.show([Led { rgb: WHITE, mode: Mode::Solid }; 3]).unwrap();
-    dev.flash(Position::Middle, Rgb { r: 255, g: 0, b: 0 }).unwrap();
+    dev.show(
+        [Led {
+            rgb: WHITE,
+            mode: Mode::Solid,
+        }; 3],
+    )
+    .unwrap();
+    dev.flash(Position::Middle, Rgb { r: 255, g: 0, b: 0 })
+        .unwrap();
     let sim = dev.port_mut();
     assert_eq!(
         sim.keypad.pixels(sim.now),
-        [Rgb { r: 64, g: 64, b: 64 }, Rgb { r: 64, g: 0, b: 0 }, Rgb { r: 64, g: 64, b: 64 }]
+        [
+            Rgb {
+                r: 64,
+                g: 64,
+                b: 64
+            },
+            Rgb { r: 64, g: 0, b: 0 },
+            Rgb {
+                r: 64,
+                g: 64,
+                b: 64
+            }
+        ]
     );
 }
 
 #[test]
 fn a_reply_that_does_not_answer_the_query_is_invalid_data() {
     let mut dev = Device::new(Canned(Some("banana\n"), VecDeque::new()));
-    assert_eq!(dev.next_key().unwrap_err().kind(), io::ErrorKind::InvalidData);
+    assert_eq!(
+        dev.next_key().unwrap_err().kind(),
+        io::ErrorKind::InvalidData
+    );
 }
 
 #[test]
@@ -167,7 +204,10 @@ fn usb(name: &str, serial: Option<&str>) -> SerialPortInfo {
 fn finds_the_port_by_its_triton_serial_number_ignoring_case() {
     let ports = vec![
         usb("COM9", Some("IO-PROBE")),
-        SerialPortInfo { port_name: "COM1".into(), port_type: SerialPortType::Unknown },
+        SerialPortInfo {
+            port_name: "COM1".into(),
+            port_type: SerialPortType::Unknown,
+        },
         usb("COM10", Some("triton-0123456789abcdef")),
     ];
     assert_eq!(find_port(&ports), Some("COM10".into()));
@@ -175,5 +215,8 @@ fn finds_the_port_by_its_triton_serial_number_ignoring_case() {
 
 #[test]
 fn finds_nothing_without_a_triton_serial_number() {
-    assert_eq!(find_port(&[usb("COM9", Some("IO-PROBE")), usb("COM11", None)]), None);
+    assert_eq!(
+        find_port(&[usb("COM9", Some("IO-PROBE")), usb("COM11", None)]),
+        None
+    );
 }

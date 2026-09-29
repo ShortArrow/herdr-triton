@@ -1,4 +1,6 @@
-use bridge::state::{palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status, Wrap};
+use bridge::state::{
+    palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status, Workspace, Wrap,
+};
 use protocol::{Led, Mode, Position, Position::*};
 
 fn agent(pane: &str, status: Status, seq: u64) -> Agent {
@@ -34,7 +36,12 @@ fn keys() -> AgentKeys {
         ("custom".to_string(), prompt_keys("space", "tab")),
         (
             "stopper".to_string(),
-            PromptKeys { wrap: Wrap::ByScreen { back: vec!["up".into()] }, ..prompt_keys("enter", "down") },
+            PromptKeys {
+                wrap: Wrap::ByScreen {
+                    back: vec!["up".into()],
+                },
+                ..prompt_keys("enter", "down")
+            },
         ),
     ]
     .into()
@@ -156,7 +163,11 @@ mod snapshot {
         s.update(Msg::SnapshotFailed);
         assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
         s.update(Msg::Snapshot(vec![]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
+        assert_eq!(
+            s.update(Msg::KeyDown(Left)),
+            vec![Cmd::ListWorkspaces],
+            "queue emptied"
+        );
     }
 }
 
@@ -201,9 +212,9 @@ mod jump {
     }
 
     #[test]
-    fn with_an_empty_queue_flashes_an_error() {
+    fn with_nothing_waiting_or_done_lists_the_workspaces() {
         let mut s = with(vec![agent("a", Status::Idle, 1)]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
+        assert_eq!(s.update(Msg::KeyDown(Left)), vec![Cmd::ListWorkspaces]);
     }
 
     #[test]
@@ -460,7 +471,15 @@ mod observation {
     #[test]
     fn waiting_counts_the_queue() {
         assert_eq!(with(vec![]).waiting(), 0);
-        assert_eq!(with(vec![blocked("a"), agent("b", Status::Idle, 1), blocked("c")]).waiting(), 2);
+        assert_eq!(
+            with(vec![
+                blocked("a"),
+                agent("b", Status::Idle, 1),
+                blocked("c")
+            ])
+            .waiting(),
+            2
+        );
     }
 
     #[test]
@@ -491,37 +510,57 @@ mod select_by_screen {
     }
 
     fn keys_of(pane: &str, keys: &[&str]) -> Vec<Cmd> {
-        vec![Cmd::SendKeys { pane_id: pane.into(), keys: keys.iter().map(|k| k.to_string()).collect() }]
+        vec![Cmd::SendKeys {
+            pane_id: pane.into(),
+            keys: keys.iter().map(|k| k.to_string()).collect(),
+        }]
     }
 
     /// Presses Select on a non-wrapping agent and answers the screen read.
     fn select_with_screen(s: &mut State, screen: Option<String>) -> Vec<Cmd> {
-        assert_eq!(select(s, vec![stopper("a")]), vec![Cmd::ReadScreen { pane_id: "a".into() }]);
+        assert_eq!(
+            select(s, vec![stopper("a")]),
+            vec![Cmd::ReadScreen {
+                pane_id: "a".into()
+            }]
+        );
         s.update(Msg::Screen(screen))
     }
 
     #[test]
     fn from_the_last_option_goes_back_to_the_first() {
         let mut s = with(vec![]);
-        assert_eq!(select_with_screen(&mut s, Some(prompt(6, 6))), keys_of("a", &["up"; 5]));
+        assert_eq!(
+            select_with_screen(&mut s, Some(prompt(6, 6))),
+            keys_of("a", &["up"; 5])
+        );
     }
 
     #[test]
     fn from_any_other_option_moves_down() {
         let mut s = with(vec![]);
-        assert_eq!(select_with_screen(&mut s, Some(prompt(3, 2))), keys_of("a", &["down"]));
+        assert_eq!(
+            select_with_screen(&mut s, Some(prompt(3, 2))),
+            keys_of("a", &["down"])
+        );
     }
 
     #[test]
     fn a_single_option_moves_down() {
         let mut s = with(vec![]);
-        assert_eq!(select_with_screen(&mut s, Some(prompt(1, 1))), keys_of("a", &["down"]));
+        assert_eq!(
+            select_with_screen(&mut s, Some(prompt(1, 1))),
+            keys_of("a", &["down"])
+        );
     }
 
     #[test]
     fn a_screen_without_a_highlighted_list_moves_down() {
         let mut s = with(vec![]);
-        assert_eq!(select_with_screen(&mut s, Some("working...\n".into())), keys_of("a", &["down"]));
+        assert_eq!(
+            select_with_screen(&mut s, Some("working...\n".into())),
+            keys_of("a", &["down"])
+        );
     }
 
     #[test]
@@ -536,7 +575,13 @@ mod select_by_screen {
         select_with_screen(&mut s, Some(prompt(3, 3)));
         assert_eq!(
             s.update(Msg::RequestDone { ok: true }),
-            vec![Cmd::Flash { pos: Right, rgb: WHITE }, Cmd::Poll]
+            vec![
+                Cmd::Flash {
+                    pos: Right,
+                    rgb: WHITE
+                },
+                Cmd::Poll
+            ]
         );
     }
 
@@ -550,6 +595,119 @@ mod select_by_screen {
     fn approve_never_reads_the_screen() {
         let mut s = with(vec![]);
         assert_eq!(approve(&mut s, vec![stopper("a")]), send_enter("a"));
+    }
+}
+
+mod jump_to_done {
+    use super::*;
+
+    fn done(pane: &str) -> Agent {
+        agent(pane, Status::Done, 1)
+    }
+
+    #[test]
+    fn with_nothing_waiting_focuses_the_first_done_agent() {
+        let mut s = with(vec![agent("x", Status::Idle, 1), done("d1"), done("d2")]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("d1"));
+    }
+
+    #[test]
+    fn cycles_from_the_focused_done_agent() {
+        let mut s = with(vec![done("d1"), focused(done("d2")), done("d3")]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("d3"));
+    }
+
+    #[test]
+    fn waiting_agents_come_first() {
+        let mut s = with(vec![done("d1"), blocked("a")]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+    }
+
+    #[test]
+    fn finished_counts_done_agents() {
+        assert_eq!(
+            with(vec![done("d1"), blocked("a"), done("d2")]).finished(),
+            2
+        );
+    }
+}
+
+mod jump_to_workspaces {
+    use super::*;
+
+    fn ws(id: &str, focused: bool) -> Workspace {
+        Workspace {
+            id: id.into(),
+            focused,
+        }
+    }
+
+    fn listed(workspaces: Option<Vec<Workspace>>) -> Vec<Cmd> {
+        let mut s = with(vec![]);
+        assert_eq!(s.update(Msg::KeyDown(Left)), vec![Cmd::ListWorkspaces]);
+        s.update(Msg::Workspaces(workspaces))
+    }
+
+    #[test]
+    fn focuses_the_workspace_after_the_focused_one() {
+        assert_eq!(
+            listed(Some(vec![ws("w1", false), ws("w2", true), ws("w3", false)])),
+            vec![Cmd::FocusWorkspace {
+                workspace_id: "w3".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn wraps_from_the_last_workspace_to_the_first() {
+        assert_eq!(
+            listed(Some(vec![ws("w1", false), ws("w2", true)])),
+            vec![Cmd::FocusWorkspace {
+                workspace_id: "w1".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn with_no_workspace_focused_focuses_the_first() {
+        assert_eq!(
+            listed(Some(vec![ws("w1", false), ws("w2", false)])),
+            vec![Cmd::FocusWorkspace {
+                workspace_id: "w1".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn an_empty_or_failed_list_flashes_an_error() {
+        assert_eq!(listed(Some(vec![])), error(Left));
+        assert_eq!(listed(None), error(Left));
+    }
+
+    #[test]
+    fn a_successful_focus_flashes_white_and_refreshes() {
+        let mut s = with(vec![]);
+        s.update(Msg::KeyDown(Left));
+        s.update(Msg::Workspaces(Some(vec![ws("w1", true), ws("w2", false)])));
+        assert_eq!(
+            s.update(Msg::RequestDone { ok: true }),
+            vec![
+                Cmd::Flash {
+                    pos: Left,
+                    rgb: WHITE
+                },
+                Cmd::Poll
+            ]
+        );
+    }
+
+    #[test]
+    fn a_list_nobody_asked_for_is_ignored() {
+        let mut s = with(vec![]);
+        assert_eq!(
+            s.update(Msg::Workspaces(Some(vec![ws("w1", true)]))),
+            vec![]
+        );
     }
 }
 
@@ -589,8 +747,24 @@ mod frame {
     }
 
     #[test]
-    fn an_empty_queue_is_dark() {
-        assert_eq!(with(vec![]).frame(), [DARK; 3]);
+    fn nothing_waiting_or_done_lights_jump_white() {
+        assert_eq!(with(vec![]).frame(), [led(WHITE, Mode::Solid), DARK, DARK]);
+    }
+
+    #[test]
+    fn only_done_agents_breathe_green_on_jump() {
+        assert_eq!(
+            with(vec![agent("d", Status::Done, 1)]).frame(),
+            [led(GREEN, Mode::Breathe), DARK, DARK]
+        );
+    }
+
+    #[test]
+    fn waiting_agents_outrank_done_ones_on_the_jump_led() {
+        assert_eq!(
+            with(vec![agent("d", Status::Done, 1), blocked("a")]).frame()[0],
+            led(AMBER, Mode::Breathe)
+        );
     }
 
     #[test]

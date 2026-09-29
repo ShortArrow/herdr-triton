@@ -47,17 +47,41 @@ pub enum Msg {
     },
     /// The screen `Cmd::ReadScreen` asked for; `None` if it could not be read.
     Screen(Option<String>),
+    /// The workspaces `Cmd::ListWorkspaces` asked for; `None` on failure.
+    Workspaces(Option<Vec<Workspace>>),
+}
+
+/// A herdr workspace and whether it is on screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Workspace {
+    pub id: String,
+    pub focused: bool,
 }
 
 /// Outputs of [`State::update`], executed in order by the runtime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cmd {
     Poll,
-    Focus { pane_id: String },
-    SendKeys { pane_id: String, keys: Vec<String> },
-    Flash { pos: Position, rgb: Rgb },
+    Focus {
+        pane_id: String,
+    },
+    SendKeys {
+        pane_id: String,
+        keys: Vec<String>,
+    },
+    Flash {
+        pos: Position,
+        rgb: Rgb,
+    },
     /// Read the pane's visible screen, answered with `Msg::Screen`.
-    ReadScreen { pane_id: String },
+    ReadScreen {
+        pane_id: String,
+    },
+    /// List every workspace, answered with `Msg::Workspaces`.
+    ListWorkspaces,
+    FocusWorkspace {
+        workspace_id: String,
+    },
 }
 
 /// Colours the bridge shows.
@@ -138,8 +162,13 @@ enum Pending {
     None,
     /// A prompt key was pressed; the refreshed snapshot decides.
     Refresh(PromptAction),
+    /// Jump found nothing waiting or done and is waiting for the workspaces.
+    Workspaces,
     /// Select is waiting for the screen of `pane_id` to choose its keys.
-    Screen { pane_id: String, keys: PromptKeys },
+    Screen {
+        pane_id: String,
+        keys: PromptKeys,
+    },
     /// A request from `pos` is in flight; `sent` is the confirmation it recorded.
     Request {
         pos: Position,
@@ -156,6 +185,8 @@ pub struct State {
     queue: Vec<Entry>,
     focused: Option<String>,
     sent: Vec<(String, u64)>,
+    /// Agents that have finished and not been seen, in `agent.list` order.
+    done: Vec<String>,
     pending: Pending,
 }
 
@@ -167,6 +198,7 @@ impl State {
             queue: Vec::new(),
             focused: None,
             sent: Vec::new(),
+            done: Vec::new(),
             pending: Pending::None,
         }
     }
@@ -202,7 +234,13 @@ impl State {
             Msg::KeyDown(Position::Right) => self.refresh_for(PromptAction::Select),
             Msg::RequestDone { ok } => self.finish_request(ok),
             Msg::Screen(screen) => self.select_on_screen(screen.as_deref()),
+            Msg::Workspaces(workspaces) => self.jump_to_workspace(workspaces),
         }
+    }
+
+    /// How many agents have finished and not been seen.
+    pub fn finished(&self) -> usize {
+        self.done.len()
     }
 
     /// How many agents are waiting.
@@ -234,7 +272,11 @@ impl State {
             Conn::Incompatible => [solid(palette::RED); 3],
             Conn::Connected => {
                 let jump = match self.queue.len() {
-                    0 => dark,
+                    0 if !self.done.is_empty() => Led {
+                        rgb: palette::GREEN,
+                        mode: Mode::Breathe,
+                    },
+                    0 => solid(palette::WHITE),
                     1 => Led {
                         rgb: palette::AMBER,
                         mode: Mode::Breathe,
@@ -256,6 +298,7 @@ impl State {
     fn lose_herdr(&mut self, conn: Conn) {
         self.conn = conn;
         self.queue.clear();
+        self.done.clear();
         self.focused = None;
         self.sent.clear();
         self.pending = Pending::None;
@@ -279,6 +322,11 @@ impl State {
         }
         self.queue = queue;
         self.focused = agents.iter().find(|a| a.focused).map(|a| a.pane_id.clone());
+        self.done = agents
+            .iter()
+            .filter(|a| a.status == Status::Done)
+            .map(|a| a.pane_id.clone())
+            .collect();
         let queue = &self.queue;
         self.sent.retain(|(pane, seq)| {
             queue
@@ -301,14 +349,43 @@ impl State {
         self.queue.iter().position(|e| e.pane_id == focused)
     }
 
+    /// Jump's tiers (ADR 0011): waiting agents, then done ones, then workspaces.
     fn jump(&mut self) -> Vec<Cmd> {
-        match self.jump_target() {
+        let target = self.jump_target().or_else(|| {
+            let done: Vec<&str> = self.done.iter().map(String::as_str).collect();
+            next_after(&done, self.focused.as_deref())
+        });
+        if target.is_none() {
+            self.pending = Pending::Workspaces;
+            return vec![Cmd::ListWorkspaces];
+        }
+        match target {
             Some(pane_id) => {
                 self.pending = Pending::Request {
                     pos: Position::Left,
                     sent: None,
                 };
                 vec![Cmd::Focus { pane_id }]
+            }
+            None => error(Position::Left),
+        }
+    }
+
+    fn jump_to_workspace(&mut self, workspaces: Option<Vec<Workspace>>) -> Vec<Cmd> {
+        if self.pending != Pending::Workspaces {
+            return Vec::new();
+        }
+        self.pending = Pending::None;
+        let workspaces = workspaces.unwrap_or_default();
+        let ids: Vec<&str> = workspaces.iter().map(|w| w.id.as_str()).collect();
+        let focused = workspaces.iter().find(|w| w.focused).map(|w| w.id.as_str());
+        match next_after(&ids, focused) {
+            Some(workspace_id) => {
+                self.pending = Pending::Request {
+                    pos: Position::Left,
+                    sent: None,
+                };
+                vec![Cmd::FocusWorkspace { workspace_id }]
             }
             None => error(Position::Left),
         }
@@ -342,7 +419,10 @@ impl State {
                 Some((pane_id.clone(), entry.state_change_seq)),
             ),
             PromptAction::Select if keys.wrap != Wrap::Native => {
-                self.pending = Pending::Screen { pane_id: pane_id.clone(), keys: keys.clone() };
+                self.pending = Pending::Screen {
+                    pane_id: pane_id.clone(),
+                    keys: keys.clone(),
+                };
                 return vec![Cmd::ReadScreen { pane_id }];
             }
             PromptAction::Select => (keys.select.clone(), None),
@@ -366,12 +446,18 @@ impl State {
             (last >= 2 && p.highlighted == Some(last)).then_some(last)
         });
         let keys = match (at_last, &keys.wrap) {
-            (Some(n), Wrap::ByScreen { back }) => {
-                back.iter().cloned().cycle().take(back.len() * (n - 1) as usize).collect()
-            }
+            (Some(n), Wrap::ByScreen { back }) => back
+                .iter()
+                .cloned()
+                .cycle()
+                .take(back.len() * (n - 1) as usize)
+                .collect(),
             _ => keys.select,
         };
-        self.pending = Pending::Request { pos: Position::Right, sent: None };
+        self.pending = Pending::Request {
+            pos: Position::Right,
+            sent: None,
+        };
         vec![Cmd::SendKeys { pane_id, keys }]
     }
 
@@ -396,6 +482,16 @@ fn entry_of(a: &Agent) -> Entry {
         agent: a.agent.clone(),
         state_change_seq: a.state_change_seq,
     }
+}
+
+/// The item after `focused` in `items`, cycling; the first if `focused` is
+/// not among them; none if `items` is empty.
+fn next_after(items: &[&str], focused: Option<&str>) -> Option<String> {
+    let index = match focused.and_then(|f| items.iter().position(|i| *i == f)) {
+        Some(i) => (i + 1) % items.len(),
+        None => 0,
+    };
+    items.get(index).map(|i| i.to_string())
 }
 
 fn error(pos: Position) -> Vec<Cmd> {

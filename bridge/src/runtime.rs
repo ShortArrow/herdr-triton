@@ -8,7 +8,7 @@ use protocol::{Edge, Led, Position, Rgb};
 
 use crate::herdr::client::{CallError, Client};
 use crate::herdr::wire::{is_supported, Request, Response};
-use crate::state::{AgentKeys, Cmd, Conn, Msg, State};
+use crate::state::{AgentKeys, Cmd, Conn, Msg, State, Workspace};
 
 /// Milliseconds on a monotonic clock.
 pub type Millis = u64;
@@ -136,16 +136,41 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
                 }
                 Cmd::Focus { pane_id } => {
                     let reply = self.herdr.call(&Request::AgentFocus { target: pane_id });
-                    Msg::RequestDone { ok: matches!(reply, Ok(Response::Agent(_) | Response::Ok)) }
+                    Msg::RequestDone {
+                        ok: matches!(reply, Ok(Response::Agent(_) | Response::Ok)),
+                    }
                 }
                 Cmd::SendKeys { pane_id, keys } => {
-                    let reply = self.herdr.call(&Request::AgentSendKeys { target: pane_id, keys });
-                    Msg::RequestDone { ok: matches!(reply, Ok(Response::Ok)) }
+                    let reply = self.herdr.call(&Request::AgentSendKeys {
+                        target: pane_id,
+                        keys,
+                    });
+                    Msg::RequestDone {
+                        ok: matches!(reply, Ok(Response::Ok)),
+                    }
                 }
                 Cmd::ReadScreen { pane_id } => {
                     match self.herdr.call(&Request::AgentRead { target: pane_id }) {
                         Ok(Response::Screen(text)) => Msg::Screen(Some(text)),
                         _ => Msg::Screen(None),
+                    }
+                }
+                Cmd::ListWorkspaces => match self.herdr.call(&Request::WorkspaceList) {
+                    Ok(Response::Workspaces(nodes)) => Msg::Workspaces(Some(
+                        nodes
+                            .into_iter()
+                            .map(|n| Workspace {
+                                id: n.id,
+                                focused: n.focused,
+                            })
+                            .collect(),
+                    )),
+                    _ => Msg::Workspaces(None),
+                },
+                Cmd::FocusWorkspace { workspace_id } => {
+                    let reply = self.herdr.call(&Request::WorkspaceFocus { workspace_id });
+                    Msg::RequestDone {
+                        ok: matches!(reply, Ok(Response::Workspace(_))),
                     }
                 }
                 Cmd::Flash { pos, rgb } => {
@@ -162,7 +187,7 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
     /// and ends a hook's loop after [`LINGER`] of either.
     fn watch(&mut self, now: Millis) -> Result<(), Exit> {
         let gone = self.state.conn() == Conn::Disconnected;
-        let idle = self.state.waiting() == 0;
+        let idle = self.state.waiting() == 0 && self.state.finished() == 0;
         let since = |flag: bool, clock: &mut Option<Millis>| match flag {
             true => Some(*clock.get_or_insert(now)),
             false => {

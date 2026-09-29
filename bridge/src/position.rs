@@ -38,7 +38,9 @@ impl NotActive {
 
 /// The focused pane's id without its `w…:p` prefix.
 pub fn pane_id(panes: &[Node]) -> Result<String, NotActive> {
-    focused(panes).map(|p| short_pane(&p.id).to_owned()).ok_or(NotActive)
+    focused(panes)
+        .map(|p| short_pane(&p.id).to_owned())
+        .ok_or(NotActive)
 }
 
 /// `{"w", "p", "panes"}`: the workspace, its focused pane, and every pane.

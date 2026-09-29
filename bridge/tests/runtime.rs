@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::io;
 
 use bridge::herdr::client::CallError;
-use bridge::herdr::wire::{Request, Response};
+use bridge::herdr::wire::{Node, Request, Response};
 use bridge::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime};
 use bridge::state::{palette, Agent, AgentKeys, PromptKeys, Status, Wrap};
 use protocol::{Edge, Led, Mode, Position, Rgb};
@@ -16,6 +16,7 @@ struct FakeHerdr {
     reachable: bool,
     refuse: bool,
     screen: String,
+    workspaces: Vec<(String, bool)>,
     requests: Vec<Request>,
 }
 
@@ -27,6 +28,7 @@ impl FakeHerdr {
             reachable: true,
             refuse: false,
             screen: String::new(),
+            workspaces: Vec::new(),
             requests: Vec::new(),
         }
     }
@@ -38,18 +40,45 @@ impl Herdr for FakeHerdr {
         if !self.reachable {
             return Err(CallError::Io(io::ErrorKind::NotFound.into()));
         }
-        if self.refuse && !matches!(request, Request::Ping | Request::AgentList) {
-            return Ok(Response::Error { code: "agent_not_found".into(), message: "gone".into() });
+        let reads = matches!(
+            request,
+            Request::Ping | Request::AgentList | Request::WorkspaceList | Request::AgentRead { .. }
+        );
+        if self.refuse && !reads {
+            return Ok(Response::Error {
+                code: "agent_not_found".into(),
+                message: "gone".into(),
+            });
         }
         Ok(match request {
-            Request::Ping => Response::Pong { version: self.version.clone() },
+            Request::Ping => Response::Pong {
+                version: self.version.clone(),
+            },
             Request::AgentList => Response::Agents(self.agents.clone()),
             Request::AgentFocus { target } => {
-                let a = self.agents.iter().find(|a| &a.pane_id == target).cloned().unwrap();
+                let a = self
+                    .agents
+                    .iter()
+                    .find(|a| &a.pane_id == target)
+                    .cloned()
+                    .unwrap();
                 Response::Agent(a)
             }
             Request::AgentSendKeys { .. } => Response::Ok,
             Request::AgentRead { .. } => Response::Screen(self.screen.clone()),
+            Request::WorkspaceList => Response::Workspaces(
+                self.workspaces
+                    .iter()
+                    .map(|(id, focused)| Node {
+                        id: id.clone(),
+                        focused: *focused,
+                    })
+                    .collect(),
+            ),
+            Request::WorkspaceFocus { workspace_id } => Response::Workspace(Node {
+                id: workspace_id.clone(),
+                focused: true,
+            }),
             other => panic!("unexpected {other:?}"),
         })
     }
@@ -91,10 +120,19 @@ fn blocked(pane: &str, focused: bool) -> Agent {
 }
 
 fn keys() -> AgentKeys {
-    let keys = |wrap| PromptKeys { confirm: vec!["enter".into()], select: vec!["down".into()], wrap };
+    let keys = |wrap| PromptKeys {
+        confirm: vec!["enter".into()],
+        select: vec!["down".into()],
+        wrap,
+    };
     [
         ("claude".to_string(), keys(Wrap::Native)),
-        ("stopper".to_string(), keys(Wrap::ByScreen { back: vec!["up".into()] })),
+        (
+            "stopper".to_string(),
+            keys(Wrap::ByScreen {
+                back: vec!["up".into()],
+            }),
+        ),
     ]
     .into()
 }
@@ -106,7 +144,11 @@ fn started(agents: Vec<Agent>, mode: RunMode) -> Runtime<FakeHerdr, FakeKeys> {
 }
 
 fn polls(rt: &Runtime<FakeHerdr, FakeKeys>) -> usize {
-    rt.herdr().requests.iter().filter(|r| **r == Request::AgentList).count()
+    rt.herdr()
+        .requests
+        .iter()
+        .filter(|r| **r == Request::AgentList)
+        .count()
 }
 
 mod starting {
@@ -125,7 +167,15 @@ mod starting {
         let mut rt = Runtime::new(herdr, FakeKeys::default(), keys(), RunMode::Run);
         rt.start(0).unwrap();
         rt.tick(0).unwrap();
-        assert_eq!(rt.keys().shown.last(), Some(&[Led { rgb: palette::RED, mode: Mode::Solid }; 3]));
+        assert_eq!(
+            rt.keys().shown.last(),
+            Some(
+                &[Led {
+                    rgb: palette::RED,
+                    mode: Mode::Solid
+                }; 3]
+            )
+        );
     }
 }
 
@@ -152,7 +202,10 @@ mod keys_to_herdr {
         rt.tick(10).unwrap();
         assert_eq!(
             rt.herdr().requests[2..],
-            [Request::AgentFocus { target: "a".into() }, Request::AgentList]
+            [
+                Request::AgentFocus { target: "a".into() },
+                Request::AgentList
+            ]
         );
         assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::WHITE)]);
     }
@@ -169,13 +222,18 @@ mod keys_to_herdr {
     #[test]
     fn approve_polls_then_sends_the_confirm_keys() {
         let mut rt = started(vec![blocked("a", true)], RunMode::Run);
-        rt.keys_mut().events.push_back((Position::Middle, Edge::Down));
+        rt.keys_mut()
+            .events
+            .push_back((Position::Middle, Edge::Down));
         rt.tick(10).unwrap();
         assert_eq!(
             rt.herdr().requests[2..],
             [
                 Request::AgentList,
-                Request::AgentSendKeys { target: "a".into(), keys: vec!["enter".into()] },
+                Request::AgentSendKeys {
+                    target: "a".into(),
+                    keys: vec!["enter".into()]
+                },
                 Request::AgentList,
             ]
         );
@@ -187,17 +245,51 @@ mod keys_to_herdr {
         stopper.agent = Some("stopper".into());
         let mut rt = started(vec![stopper], RunMode::Run);
         rt.herdr_mut().screen = "   1. Yes\n   2. Always\n ❯ 3. No\n".into();
-        rt.keys_mut().events.push_back((Position::Right, Edge::Down));
+        rt.keys_mut()
+            .events
+            .push_back((Position::Right, Edge::Down));
         rt.tick(10).unwrap();
         assert_eq!(
             rt.herdr().requests[2..],
             [
                 Request::AgentList,
                 Request::AgentRead { target: "a".into() },
-                Request::AgentSendKeys { target: "a".into(), keys: vec!["up".into(), "up".into()] },
+                Request::AgentSendKeys {
+                    target: "a".into(),
+                    keys: vec!["up".into(), "up".into()]
+                },
                 Request::AgentList,
             ]
         );
+    }
+
+    #[test]
+    fn jump_with_nothing_waiting_or_done_moves_to_the_next_workspace() {
+        let mut rt = started(vec![], RunMode::Run);
+        rt.herdr_mut().workspaces = vec![("w1".into(), true), ("w2".into(), false)];
+        rt.keys_mut().events.push_back((Position::Left, Edge::Down));
+        rt.tick(10).unwrap();
+        assert_eq!(
+            rt.herdr().requests[2..],
+            [
+                Request::WorkspaceList,
+                Request::WorkspaceFocus {
+                    workspace_id: "w2".into()
+                },
+                Request::AgentList,
+            ]
+        );
+        assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::WHITE)]);
+    }
+
+    #[test]
+    fn a_refused_workspace_focus_flashes_red() {
+        let mut rt = started(vec![], RunMode::Run);
+        rt.herdr_mut().workspaces = vec![("w1".into(), true), ("w2".into(), false)];
+        rt.herdr_mut().refuse = true;
+        rt.keys_mut().events.push_back((Position::Left, Edge::Down));
+        rt.tick(10).unwrap();
+        assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::RED)]);
     }
 
     #[test]
@@ -211,9 +303,18 @@ mod keys_to_herdr {
     #[test]
     fn every_queued_event_is_handled_in_one_tick() {
         let mut rt = started(vec![blocked("a", false)], RunMode::Run);
-        rt.keys_mut().events.extend([(Position::Left, Edge::Down), (Position::Left, Edge::Up), (Position::Left, Edge::Down)]);
+        rt.keys_mut().events.extend([
+            (Position::Left, Edge::Down),
+            (Position::Left, Edge::Up),
+            (Position::Left, Edge::Down),
+        ]);
         rt.tick(10).unwrap();
-        let focuses = rt.herdr().requests.iter().filter(|r| matches!(r, Request::AgentFocus { .. })).count();
+        let focuses = rt
+            .herdr()
+            .requests
+            .iter()
+            .filter(|r| matches!(r, Request::AgentFocus { .. }))
+            .count();
         assert_eq!(focuses, 2);
     }
 }
@@ -234,7 +335,11 @@ mod leds {
         for t in (1010..=1250).step_by(10) {
             rt.tick(t).unwrap();
         }
-        assert_eq!(rt.keys().shown.len(), 3, "sent again when the 1250 poll changed it");
+        assert_eq!(
+            rt.keys().shown.len(),
+            3,
+            "sent again when the 1250 poll changed it"
+        );
     }
 }
 
@@ -246,6 +351,16 @@ mod exiting {
         let mut rt = started(vec![], RunMode::Hook);
         assert!(rt.tick(4990).is_ok());
         assert_eq!(rt.tick(5000).unwrap_err(), Exit::Idle);
+    }
+
+    #[test]
+    fn a_done_agent_keeps_a_hook_listening() {
+        let mut done = blocked("d", false);
+        done.status = Status::Done;
+        let mut rt = started(vec![done], RunMode::Hook);
+        for t in (250..=10_000).step_by(250) {
+            rt.tick(t).unwrap();
+        }
     }
 
     #[test]
