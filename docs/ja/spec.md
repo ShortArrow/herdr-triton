@@ -34,7 +34,7 @@ herdr のエージェントが承認待ち（`blocked`）になったら、RP204
 | 任意 | herdr がプラグインの `startup` を実行するか、`pane.agent_status_changed` を発行する | herdr が `bridge hook` を起動する |
 | 別の `bridge` がデバイスのポートを開いている | `bridge hook` が起動する | 500 ms の間ポートを開き直し、開けなければ終了する |
 | ポートが開けた | `bridge hook` が起動する | リスナーになり、下のループを回す |
-| リスナー | `queue` が 5 秒続けて空 | ポートを閉じて終了する |
+| リスナー | `queue` と `done` が 5 秒続けてどちらも空 | ポートを閉じて終了する |
 | リスナー | herdr に 5 秒続けて届かない | ポートを閉じて終了する |
 
 動くのはポートを開けたプロセスだけなので、1つのデバイスに対してリスナーは多くても1つになる。
@@ -83,6 +83,8 @@ herdr は自分の pane の中で `HERDR_SOCKET_PATH` を設定する。
 | `agent.focus {target}` | Jump。ワークスペースとタブを切り替えて pane にフォーカスする。応答は `ok` ではなく `agent_info` |
 | `agent.send_keys {target, keys}` | Approve と Select。pane にいるエージェントが入れ替わっていれば herdr が拒否する |
 | `agent.read {target, source: "visible"}` | リストが折り返さないエージェントでの Select。ハイライトの位置を知るために画面を読む |
+| `workspace.list` | 承認待ちも完了報告も無いときの Jump。全ワークスペースと、どれにフォーカスがあるか |
+| `workspace.focus {workspace_id}` | 承認待ちも完了報告も無いときの Jump。応答は `workspace_info` |
 
 `events.subscribe` は使わない（ADR 0004）。
 
@@ -125,7 +127,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 
 | 位置 | 名前 | 動作 |
 |---|---|---|
-| 左 | Jump | 承認待ちの pane を移動する。`queue` の先頭か、フォーカス中の pane の次へ |
+| 左 | Jump | 承認待ちの pane を巡回する。承認待ちが無ければ作業を終えたエージェントを、それも無ければワークスペースを巡回する（ADR 0011） |
 | 中 | Approve | フォーカス中のプロンプトで、ハイライトされている選択肢を確定する |
 | 右 | Select | フォーカス中のプロンプトで、ハイライトを次の選択肢へ動かす。最後の次は最初 |
 
@@ -141,6 +143,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 | `queue` | `(pane_id, agent, state_change_seq)` の列 | `blocked` のエージェント。`bridge` が最初に blocked を観測した順 |
 | `focused` | `pane_id` または無し | herdr が `focused` と返すエージェントの pane |
 | `sent` | `(pane_id, state_change_seq)` の集合 | 確定キーを送ったあと、まだ状態変化が報告されていないもの |
+| `done` | `pane_id` の列 | `done`（作業を終え、まだ見られていない）のエージェント。`agent.list` の順 |
 
 不変条件:
 
@@ -173,6 +176,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 | `queue` にあり、`blocked` のままで `state_change_seq` が変わった | 位置はそのままで `agent` と `state_change_seq` を更新する |
 | スナップショットで `blocked`、`queue` に無い | 末尾に追加する。接続後の最初のスナップショットでは `agent.list` の順に追加する |
 | 任意 | `focused` を `focused: true` のエージェントにする。無ければ無し |
+| 任意 | `done` を `done` のエージェントにする |
 | 任意 | `queue` と一致しなくなった `sent` の要素を捨てる |
 
 `agent.list` が失敗したら `conn = Disconnected` にし、`queue`・`focused`・`sent` を空にする。
@@ -183,9 +187,10 @@ firmware は書き込む前に赤と緑を入れ替える。
 | Given | When | Then |
 |---|---|---|
 | `conn ≠ Connected` | 任意のキー | エラー点滅 |
-| `queue` が空 | Jump | エラー点滅 |
 | `queue` が空でなく `focused ∉ queue` | Jump | 先頭へ `agent.focus`、再取得 |
 | `queue` が空でなく `focused ∈ queue` | Jump | `focused` の次（末尾なら先頭）へ `agent.focus`、再取得 |
+| `queue` が空で `done` が空でない | Jump | 上の2行と同じことを `done` に対して行う |
+| `queue` も `done` も空 | Jump | `workspace.list` を取り、フォーカス中の次（末尾なら先頭）のワークスペースへ `workspace.focus`。一覧が取れないか空ならエラー点滅 |
 | 任意 | Approve | 再取得する。`approvable(focused)` なら確定キーを `agent.send_keys` で送り、`(focused, seq)` を `sent` に加える。そうでなければエラー点滅 |
 | 任意 | Select | 再取得する。`approvable(focused)` なら「プロンプト用のキー」のとおりにハイライトを動かす。そうでなければエラー点滅 |
 | 任意 | リクエストが失敗 | エラー点滅、再取得。失敗した確定は `sent` から外す |
@@ -222,14 +227,15 @@ Codex は `y` も受け付けるが、`y` はハイライトの位置に関係�
 
 ## LED
 
-常時の表示は `(conn, device, len(queue), approvable(focused))` の関数で決まる。
+常時の表示は `(conn, device, len(queue), len(done), approvable(focused))` の関数で決まる。
 キー押下に対する1回きりの点滅を、その上に重ねる。
 
 | 状態 | Jump | Approve | Select |
 |---|---|---|---|
 | `Disconnected` | 赤・遅い点滅 | 赤・遅い点滅 | 赤・遅い点滅 |
 | `Incompatible` | 赤・点灯 | 赤・点灯 | 赤・点灯 |
-| `queue` が空 | 消灯 | 消灯 | 消灯。リスナーが終了するとデバイスは `NoHost` の表示になる |
+| `queue` が空で `done` が空でない | 緑・呼吸 | 消灯 | 消灯 |
+| `queue` も `done` も空 | 白・点灯。リスナーが終了するとデバイスは `NoHost` の表示になる | 消灯 | 消灯 |
 | `queue` が1件 | 琥珀・呼吸 | `approvable(focused)` なら緑、それ以外は消灯 | `approvable(focused)` なら青、それ以外は消灯 |
 | `queue` が2件以上 | 赤寄りの琥珀・呼吸 | 同上 | 同上 |
 

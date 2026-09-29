@@ -31,7 +31,7 @@ The device is an IO instrument on a serial line, not a HID keyboard. Key input r
 | any | herdr runs the plugin's `startup`, or emits `pane.agent_status_changed` | herdr starts `bridge hook` |
 | another `bridge` holds the device's port | `bridge hook` starts | it retries opening the port for 500 ms, then exits |
 | the port opens | `bridge hook` starts | it becomes the listener and runs the loop below |
-| listener | `queue` has been empty for 5 s | it closes the port and exits |
+| listener | `queue` and `done` have both been empty for 5 s | it closes the port and exits |
 | listener | herdr has been unreachable for 5 s | it closes the port and exits |
 
 Only the process holding the port acts, so at most one listener runs per device. `bridge run` runs the same loop without the idle exit, for use without the plugin. While no listener runs, the device is in `NoHost`: it shows dim white and drops key presses.
@@ -70,6 +70,8 @@ herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from 
 | `agent.focus {target}` | Jump. Switches workspace and tab and focuses the pane. Replies with `agent_info`, not `ok` |
 | `agent.send_keys {target, keys}` | Approve and Select. herdr rejects it if the pane no longer hosts the same agent |
 | `agent.read {target, source: "visible"}` | Select, for an agent whose list does not wrap: the screen, to find the highlight |
+| `workspace.list` | Jump with nothing waiting or done: every workspace and which one is focused |
+| `workspace.focus {workspace_id}` | Jump with nothing waiting or done. Replies with `workspace_info` |
 
 `bridge` does not use `events.subscribe`. See ADR 0004.
 
@@ -111,7 +113,7 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 
 | Position | Name | Action |
 |---|---|---|
-| left | Jump | Move between waiting panes: the head of `queue`, or the entry after the focused one |
+| left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between workspaces (ADR 0011) |
 | middle | Approve | Confirm the highlighted option of the focused prompt |
 | right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first |
 
@@ -126,6 +128,7 @@ To approve, press Jump, then Approve. To pick another option, such as rejecting,
 | `queue` | sequence of `(pane_id, agent, state_change_seq)` | Agents in `blocked`, in the order `bridge` first saw them blocked |
 | `focused` | `pane_id` or none | The agent pane herdr reports as `focused` |
 | `sent` | set of `(pane_id, state_change_seq)` | Confirmations sent and not yet followed by a state change |
+| `done` | sequence of `pane_id` | Agents in `done`, finished and not yet seen, in `agent.list` order |
 
 Invariants:
 
@@ -151,6 +154,7 @@ Key events and snapshots are handled one at a time in a single loop. A key press
 | Entry in `queue`, still `blocked`, `state_change_seq` changed | Keep its position, update `agent` and `state_change_seq` |
 | `blocked` in the snapshot, not in `queue` | Append it. On the first snapshot after connecting, append in `agent.list` order |
 | any | `focused` = the agent with `focused: true`, or none |
+| any | `done` = the agents in `done` |
 | any | Drop from `sent` every entry that no longer matches `queue` |
 
 A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` and `sent`. `bridge` keeps retrying.
@@ -160,9 +164,10 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` a
 | Given | When | Then |
 |---|---|---|
 | `conn ≠ Connected` | any key | error flash |
-| `queue` empty | Jump | error flash |
 | `queue` not empty, `focused ∉ queue` | Jump | `agent.focus` the head, refresh |
 | `queue` not empty, `focused ∈ queue` | Jump | `agent.focus` the entry after `focused`, cycling, refresh |
+| `queue` empty, `done` not empty | Jump | as the two rows above, over `done` |
+| `queue` and `done` empty | Jump | `workspace.list`, then `workspace.focus` the workspace after the focused one, cycling; error flash if the list fails or is empty |
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
 | any | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys"; otherwise error flash |
 | any | a request fails | error flash, refresh. A failed confirmation is removed from `sent` |
@@ -193,13 +198,14 @@ Both agents show their approval prompts as a list whose highlight moves with the
 
 ## LEDs
 
-The steady LED output is a function of `(conn, device, len(queue), approvable(focused))`. A one-shot flash for a key press is drawn on top.
+The steady LED output is a function of `(conn, device, len(queue), len(done), approvable(focused))`. A one-shot flash for a key press is drawn on top.
 
 | State | Jump | Approve | Select |
 |---|---|---|---|
 | `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
 | `Incompatible` | red, solid | red, solid | red, solid |
-| `queue` empty | off | off | off, until the listener exits and the device shows `NoHost` |
+| `queue` empty, `done` not empty | green, breathing | off | off |
+| `queue` and `done` empty | white, solid, until the listener exits and the device shows `NoHost` | off | off |
 | `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
 | `queue` has 2 or more | reddish amber, breathing | as above | as above |
 
