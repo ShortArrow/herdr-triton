@@ -2,7 +2,7 @@
 
 English | [日本語](../ja/adr/0008-listener-started-by-plugin-hooks.md)
 
-- Status: Accepted
+- Status: Superseded by 0012
 - Date: 2026-09-28
 
 ## Context

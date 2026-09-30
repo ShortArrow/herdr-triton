@@ -24,19 +24,32 @@ The device is an IO instrument on a serial line, not a HID keyboard. Key input r
 
 ## Listener lifecycle
 
-`bridge` runs as a herdr plugin's hook (ADR 0008): it runs while agents are waiting and exits when there is nothing to do.
+A resident `bridge listen` serves the keypad for the life of the herdr server that started it (ADR 0012).
 
 | Given | When | Then |
 |---|---|---|
 | any | herdr runs the plugin's `startup`, or emits `pane.agent_status_changed` | herdr starts `bridge hook` |
-| another `bridge` holds the device's port | `bridge hook` starts | it retries opening the port for 500 ms, then exits |
-| the port opens | `bridge hook` starts | it becomes the listener and runs the loop below |
-| listener | `queue` and `done` have both been empty for 5 s | it closes the port and exits |
-| listener | herdr has been unreachable for 5 s | it closes the port and exits |
+| a listener holds the named mutex | `bridge hook` starts | it sets the listener's wake event and exits |
+| no listener | `bridge hook` starts | it finds the keypad's port, spawns `bridge listen --port <port>` and exits; with no keypad it just exits |
+| listener | it starts and the mutex is already held | it exits |
+| listener, quiet | the wake event is set, or a key goes down | it takes a snapshot and becomes active; a key is then handled on that snapshot |
+| listener, active | `queue` and `done` have both been empty for 5 s | it becomes quiet |
+| listener | herdr has been unreachable for 5 s, or its version is not supported | it exits |
+| listener | `bridge stop` sets the stop event | it exits |
+| listener | the keypad fails or disappears | it closes the port and runs `bridge find-port` every second until the keypad is back |
 
-Only the process holding the port acts, so at most one listener runs per device. `bridge run` runs the same loop without the idle exit, for use without the plugin. While no listener runs, the device is in `NoHost`: it shows dim white and drops key presses.
+| Mode | Requests to herdr | `KEY:EVENt?` | LEDs |
+|---|---|---|---|
+| quiet | none | every 250 ms | `LED:ALL` in `WAVe` |
+| active | `agent.list` every 250 ms and after each request | every 20 ms | as in "LEDs" |
 
-A hook's standard output and error go to herdr, which counts the hook as running until they close. The listener is the only long-lived hook, and it writes its log to `HERDR_PLUGIN_STATE_DIR`.
+On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `bridge hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `bridge.log`.
+
+The first herdr session whose hook starts a listener keeps the keypad until its server stops. `bridge run` runs the active loop without quiet mode or exit rules, for use without the plugin. With no listener, the device is in `NoHost` and shows dim white.
+
+### Memory
+
+The listener stays at or under 1 MB in Task Manager's Memory column (active private working set), taken as the highest value over a 1 h run. To that end it links the C runtime statically, talks to herdr over `std` named pipes instead of `interprocess`, decodes herdr's replies into typed structs without `serde_json::Value`, and never enumerates serial ports itself.
 
 ## herdr
 
@@ -49,7 +62,7 @@ A hook's standard output and error go to herdr, which counts the hook as running
 
 ### Connection
 
-herdr's API accepts one request per connection: the server reads the first line and answers it. `bridge` opens a new connection for every request.
+herdr's API accepts one request per connection: the server reads the first line and answers it. `bridge` opens a new connection for every request. Each request has a 2 s deadline; a request that misses it counts as failed. After herdr becomes reachable again, `bridge` sends `ping` again before its next snapshot.
 
 One `bridge` serves one herdr session (ADR 0007). `bridge --session <name>` picks it by name, `default` being the default session, and wins over the environment, as herdr's own `--session` does. Without `--session`, the socket path is resolved as herdr resolves it, in this order:
 
@@ -57,7 +70,7 @@ One `bridge` serves one herdr session (ADR 0007). `bridge --session <name>` pick
 2. `HERDR_SESSION`, giving `<config>/sessions/<name>/herdr.sock`
 3. `<config>/herdr.sock`
 
-`<config>` is `$XDG_CONFIG_HOME/herdr` when set, otherwise `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere. On Windows the path string is the name of a named pipe (interprocess `GenericNamespaced`), and the file at that path is only a marker. `bridge` uses the same `interprocess` minor version as herdr.
+`<config>` is `$XDG_CONFIG_HOME/herdr` when set, otherwise `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere. On Windows the path string names a named pipe, `\\.\pipe\<path>` (as interprocess `GenericNamespaced` maps it for herdr), and the file at that path is only a marker. `bridge` opens it with `std`, and when every pipe instance is busy it waits for one with `WaitNamedPipeW`.
 
 herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from a herdr pane talks to that pane's session whatever `HERDR_SESSION` says.
 
@@ -204,7 +217,7 @@ The steady LED output is a function of `(conn, device, len(queue), len(done), ap
 | `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
 | `Incompatible` | red, solid | red, solid | red, solid |
 | `queue` empty, `done` not empty | green, breathing | off | off |
-| `queue` and `done` empty | white, solid (Jump cycles every agent), until the listener exits and the device shows `NoHost` | off | off |
+| `queue` and `done` empty | `WAVe` (Jump cycles every agent) | `WAVe` | `WAVe` |
 | `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
 | `queue` has 2 or more | reddish amber, breathing | as above | as above |
 
@@ -222,7 +235,7 @@ The firmware is in `NoHost` while DTR is low, or when no command has arrived fro
 - discards key events instead of queueing them, and empties the queue on entering
 - shows a dim white on all three LEDs
 
-A command that arrives while DTR is high ends `NoHost`; the LEDs then show their last set state, dark after power-up. A listener polls `KEY:EVENt?` every 20 ms, which keeps the device out of `NoHost`.
+A command that arrives while DTR is high ends `NoHost`; the LEDs then show their last set state, dark after power-up. A listener polls `KEY:EVENt?` at least every 250 ms, which keeps the device out of `NoHost`.
 
 ### Keys
 
@@ -237,6 +250,7 @@ A key reports `Down` or `Up` once its level has stayed the same for 5 ms. Report
 | `Blink` | The colour for 500 ms, dark for 500 ms |
 | `Breathe` | The colour, its brightness rising from 10 % to 100 % and back over 2 s |
 | `Flash` | The flash colour on that key for 150 ms, over whatever it showed |
+| `Wave` | A rainbow that moves across the keys: LED `n` shows hue `360° × t / 3 s + 120° × (n − 1)` at full saturation, its brightness breathing as `Breathe`; the colour sent is ignored |
 | `NoHost` | White at 8/255 on all three |
 
 Every colour is scaled so that full brightness is 64/255; WS2812s at full power are uncomfortable to look at. The LEDs take RGB and `ws2812-pio` sends GRB, so the firmware swaps red and green last.
@@ -260,13 +274,13 @@ Carried over USB CDC-ACM as SCPI-style text, one command per line (ADR 0009). Th
 
 - Lines end with `\n`; a preceding `\r` is ignored. A line is at most 64 bytes
 - Headers are case-insensitive and accept the long form or the short form in upper case in this table (`EVENt` accepts `EVEN` and `EVENT`)
-- `<n>` is `1`, `2` or `3`, left to right; `<rgb>` is `#RRGGBB`; `<mode>` is `OFF`, `SOLid`, `BREathe` or `BLINk`
+- `<n>` is `1`, `2` or `3`, left to right; `<rgb>` is `#RRGGBB`; `<mode>` is `OFF`, `SOLid`, `BREathe`, `BLINk` or `WAVe`
 - Commands without `?` produce no reply. Each query produces one line
 
 | Command | Reply | Meaning |
 |---|---|---|
 | `*IDN?` | `ShortArrow,herdr-triton,<serial>,<firmware version>` | Identify the device |
-| `SYSTem:PROTocol?` | `2` | The protocol version |
+| `SYSTem:PROTocol?` | `3` | The protocol version; 3 added `WAVe` |
 | `SYSTem:ERRor?` | `<code>,"<message>"` | The oldest queued error, or `0,"No error"` |
 | `LED:ALL <rgb>,<mode>,<rgb>,<mode>,<rgb>,<mode>` | | Set every LED, left to right |
 | `LED<n> <rgb>,<mode>` | | Set one LED |
@@ -284,7 +298,7 @@ Errors are queued, up to 8, and read with `SYSTem:ERRor?`:
 
 The `protocol` crate holds the typed commands and replies and their text form, used by both ends.
 
-`bridge` sets DTR on opening the port, discards input already buffered, and asks `SYSTem:PROTocol?`. On a version other than its own it closes the port and reports the mismatch. It then sends `LED:ALL` on every change and at least once per second, and polls `KEY:EVENt?` every 20 ms until it answers `NONE`.
+`bridge` sets DTR on opening the port, discards input already buffered, and asks `SYSTem:PROTocol?`. On a version other than its own it closes the port and reports the mismatch. It then sends `LED:ALL` on every change and at least once per second, and polls `KEY:EVENt?` as in "Listener lifecycle" until it answers `NONE`.
 
 ## Dependencies
 
@@ -292,7 +306,7 @@ The `protocol` crate holds the typed commands and replies and their text form, u
 |---|---|---|
 | `rp2040-hal` | 0.11 | `ws2812-pio` 0.9 does not build against 0.12 |
 | `usb-device` | 0.3 | Required by `drooling` and `usbd-serial` 0.2 |
-| `interprocess` | 2.4 | Same named-pipe naming as herdr |
+| `windows-sys` | 0.59 | Named mutex and events, `WaitNamedPipeW`, handle inheritance and process creation flags |
 | `serialport` | 4 | Lists ports with their USB serial numbers on Windows, Linux and macOS |
 
 The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the version this specification requires anyway).
@@ -303,6 +317,7 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
 - Clearing `sent` when herdr never reports a state change after an approval
+- Linux and macOS equivalents of the listener's mutex, events and detached spawn
 - Which client's view `focused` reflects when several herdr clients are attached
 - Several devices at once
 - A network transport: CDC-NCM with raw SCPI on TCP port 5025, reachable from VISA as `TCPIP::<address>::5025::SOCKET` and from telnet or nc. It waits for `drooling` to support `embassy-usb`, which has an NCM class; the SCPI commands and their parser stay as they are
