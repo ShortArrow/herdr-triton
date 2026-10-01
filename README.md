@@ -2,78 +2,75 @@
 
 English | [日本語](docs/ja/README.md)
 
-Three keys and three RGB LEDs for [herdr](https://github.com/herdrdev/herdr) agents waiting on approval: jump to the waiting pane, pick an option, confirm it, without hunting for the pane.
+Three keys for [herdr](https://github.com/herdrdev/herdr) agents waiting on approval: **Jump** to the waiting pane, **Select** an option, **Approve** it. The LED under each key shows what is waiting.
 
-- **Talks to herdr, not to your focus.** It is not a keyboard that types shortcuts into whatever window is active: the bridge calls herdr's socket API, so a press reaches the right pane, and Approve acts only on the focused prompt that is actually waiting
-- **The LEDs show herdr's state.** Amber while an agent waits, green while one has finished, and each key lights only when it would act
-- **An off-the-shelf board.** A Waveshare RP2040-Keyboard-3, far cheaper than a Stream Deck, with nothing to solder
-- **Light.** The resident bridge uses about 0.7 MB in Task Manager on Windows 11 and asks herdr nothing while nothing waits
-- **Plain SCPI over USB serial.** `*IDN?`, `LED1 #FF8000,BREathe`, `KEY:EVENt?`: any serial terminal or VISA library can drive the keypad, with or without herdr
-- **Open source**, under MIT or Apache-2.0
+It talks to herdr's API instead of typing into the active window, runs on a cheap off-the-shelf board, stays under 1 MB of memory, and speaks plain SCPI over USB serial. Open source under MIT or Apache-2.0.
 
-## Keys
+## What you need
 
-| Key | Does | LED |
-|---|---|---|
-| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | amber breathing while anything waits, green breathing while agents are finished, white breathing otherwise |
-| Approve (middle) | Confirm the highlighted option | green when the focused pane can be confirmed |
-| Select (right) | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
+- A [Waveshare RP2040-Keyboard-3](https://www.waveshare.com/wiki/RP2040-Keyboard-3) and a USB-C cable
+- herdr 0.9.1 or later on Windows. Linux and macOS are not tested yet
+- Rust, installed with [rustup](https://rustup.rs)
 
-To approve, press Jump, then Approve. To pick another option, such as No, press Select until it is highlighted, then Approve. A pressed key flashes white when herdr took the request and red when it did not.
+## Install
 
-All three dim white means the bridge is not running. All three blinking red means herdr cannot be reached.
+### 1. Install the build tools
 
-## Setup
+```sh
+cargo install flip-link drool
+```
 
-### 1. Install the tools
+### 2. Flash the keypad
 
-- Rust via rustup
-- `cargo install flip-link drool`
-- herdr 0.9.1 or later
+The first time only, on Windows, let the flasher reach the board:
 
-### 2. Flash the firmware
+1. Hold **BOOT** on the board while plugging it in
+2. In [Zadig](https://zadig.akeo.ie), select `RP2 Boot (Interface 1)`, pick `WinUSB`, and install it
 
-The first time only, on Windows: hold BOOT while plugging the board in, run [Zadig](https://zadig.akeo.ie), select `RP2 Boot (Interface 1)` and install `WinUSB` ([picotool's README](https://github.com/raspberrypi/picotool/blob/develop/README.md#zadig)). Then, holding BOOT while plugging it in again:
+Then, with the board still plugged in, run this from the checkout:
 
 ```sh
 cargo keypad
 ```
 
-Later updates need no button. Plug in one of the two USB-C ports only.
+When it finishes, the three LEDs glow dim white. Use only one of the board's two USB-C ports.
 
 ### 3. Add the herdr plugin
 
-From a terminal outside herdr, in this checkout:
+From a terminal outside herdr, in the checkout:
 
 ```sh
 cargo install --locked --path bridge --bin bridge --root .plugin
 herdr plugin link .
 ```
 
-From then on herdr starts the bridge by itself, at its next start or the next time an agent's status changes. Set `HERDR_SESSION=<name>` before `herdr plugin link` for a named session. After pulling, run `.plugin/bin/bridge stop` and the same `cargo install` again.
+For a named herdr session, set `HERDR_SESSION=<name>` before `herdr plugin link`.
 
 ### 4. Check it
 
-Once the bridge runs, Jump's LED breathes white while nothing waits. `bridge.log` in the plugin's state directory (`%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\` on Windows) says which port the bridge serves, and why it stopped.
+Restart herdr, or wait for any agent to change status. herdr then starts the bridge, and the left LED starts breathing: white while nothing waits, amber when an agent waits for approval.
 
-## Change the key layout
+If the LEDs stay dim white, see [Troubleshooting](docs/usage.md#troubleshooting).
 
-Put `config.toml` in the directory `herdr plugin config-dir shortarrow.herdr-triton` prints:
+## Use
 
-```toml
-layout = ["select", "jump", "approve"]   # left, middle, right
+When an agent asks for approval, the left LED breathes amber. Press **Jump** (left) to go to it, then **Approve** (middle) to confirm the highlighted option. To choose another option, press **Select** (right) until it is highlighted, then **Approve**.
+
+[Usage](docs/usage.md) explains every key and LED, how to change the key layout, and how to drive the keypad without herdr.
+
+## Update
+
+```sh
+git pull
+.plugin/bin/bridge stop
+cargo install --locked --path bridge --bin bridge --root .plugin
+cargo keypad
 ```
 
-Then run `.plugin/bin/bridge stop`; the next agent status change starts the bridge with the new layout. Each key takes its LED along.
-
-## Without the plugin
-
-`cargo run --release -p bridge --bin bridge -- run` serves the keypad until you stop it. Add `--session <name>` for a named session.
+`bridge stop` releases the running bridge so that `cargo install` can replace it; herdr starts the new one at the next agent status change. `cargo keypad` needs no button after the first time.
 
 ## Documents
 
+- [Usage](docs/usage.md)
 - [Specification](docs/spec.md)
 - [Architecture decision records](docs/adr/)
-- [herdr socket API](https://herdr.dev/docs/socket-api/), [RP2040-Keyboard-3](https://www.waveshare.com/wiki/RP2040-Keyboard-3)
-
-For development, `cargo probe` flashes a firmware that shows which key and LED sit where, and `cargo run -p bridge --bin herdr_probe` prints what herdr reports.
