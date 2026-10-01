@@ -6,7 +6,7 @@ English | [日本語](ja/usage.md)
 
 | Key | Does | LED |
 |---|---|---|
-| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | amber breathing while anything waits, green breathing while agents are finished, white breathing otherwise |
+| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | amber breathing while one agent waits, reddish amber while two or more wait, green breathing while agents are finished, white breathing otherwise |
 | Approve (middle) | Confirm the highlighted option of the focused prompt | green when the focused pane can be confirmed |
 | Select (right) | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
 
@@ -42,7 +42,7 @@ serves the keypad until you stop it. Add `--session <name>` for a named herdr se
 
 ## Drive the keypad yourself
 
-The keypad is a USB serial device whose USB serial number starts with `TRITON-`, answering SCPI text commands one per line. Stop the bridge first (`.plugin/bin/bridge stop`), then from any serial terminal or VISA library:
+The keypad is a USB serial device whose USB serial number starts with `TRITON-`, answering SCPI text commands one per line. Stop the bridge first (`.plugin\bin\bridge.exe stop`), then from any serial terminal or VISA library:
 
 ```text
 *IDN?                     -> ShortArrow,herdr-triton,TRITON-…,<version>

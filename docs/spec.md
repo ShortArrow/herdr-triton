@@ -2,7 +2,7 @@
 
 English | [日本語](ja/spec.md)
 
-When a herdr agent is waiting for approval (`blocked`), the three keys of an RP2040-Keyboard-3 jump to it, approve it, or move to the next one. The RGB LED under each key shows how many agents are waiting and whether Approve would act.
+When a herdr agent is waiting for approval (`blocked`), the three keys of an RP2040-Keyboard-3 jump to it, move the highlight among its options, and confirm the highlighted one. The RGB LED under each key shows how many agents are waiting and whether Approve would act.
 
 ## Architecture
 

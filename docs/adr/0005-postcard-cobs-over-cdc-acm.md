@@ -2,7 +2,7 @@
 
 English | [日本語](../ja/adr/0005-postcard-cobs-over-cdc-acm.md)
 
-- Status: Superseded by 0009
+- Status: Superseded by [0009](0009-scpi-text-protocol.md)
 - Date: 2026-09-28
 
 ## Context

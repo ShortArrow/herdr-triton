@@ -3,6 +3,7 @@
 English | [日本語](../ja/adr/0011-jump-falls-back-to-done-then-every-agent.md)
 
 - Status: Accepted
+- Amended by: [0012](0012-resident-listener-quiet-when-idle.md)
 - Date: 2026-09-29
 - Amends: 0006 (what Jump moves between), 0008 (when the listener exits)
 

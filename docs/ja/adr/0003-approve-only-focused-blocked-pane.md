@@ -3,6 +3,7 @@
 [English](../../adr/0003-approve-only-focused-blocked-pane.md) | 日本語
 
 - Status: Accepted
+- Amended by: [0006](0006-jump-select-approve.md)
 - Date: 2026-09-28
 
 ## Context

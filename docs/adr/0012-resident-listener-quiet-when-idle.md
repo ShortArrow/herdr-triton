@@ -9,7 +9,7 @@ English | [日本語](../ja/adr/0012-resident-listener-quiet-when-idle.md)
 
 ## Context
 
-ADR 0011's last tier, Jump through every agent, only works while a listener runs, and ADR 0008's listener exits 5 s after nothing waits. Keeping a listener has costs that three adversarial reviews measured or reproduced on Windows 11 with herdr 0.9.1:
+ADR 0011's last tier, Jump through every agent, only works while a listener runs, and ADR 0008's listener exits 5 s after nothing waits. Keeping a listener has costs, measured or reproduced on Windows 11 with herdr 0.9.1:
 
 - Polling herdr every 250 ms forever is work nobody needs while nothing waits; a Jump needs herdr's state only when it is pressed
 - A child spawned by a hook inherits the hook's stdout and stderr, which are herdr's pipes; herdr then counts the hook as running until the child exits (reproduced: EOF after the child's 6 s instead of 23 ms), and herdr allows 32 running plugin commands

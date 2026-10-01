@@ -3,6 +3,7 @@
 [English](../../adr/0009-scpi-text-protocol.md) | 日本語
 
 - Status: Accepted
+- Amended by: [0012](0012-resident-listener-quiet-when-idle.md)
 - Date: 2026-09-28
 - Supersedes: 0005
 

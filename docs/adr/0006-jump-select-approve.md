@@ -3,6 +3,7 @@
 English | [日本語](../ja/adr/0006-jump-select-approve.md)
 
 - Status: Accepted
+- Amended by: [0010](0010-select-wraps-by-reading-the-screen.md), [0011](0011-jump-falls-back-to-done-then-every-agent.md), [0013](0013-key-layout-in-plugin-config.md)
 - Date: 2026-09-28
 - Amends: 0003 (what Approve sends)
 
