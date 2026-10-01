@@ -97,6 +97,12 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
         }
     }
 
+    /// Places the keys as `layout` says instead of ADR 0006's order.
+    pub fn with_layout(mut self, layout: Layout) -> Self {
+        self.layout = layout;
+        self
+    }
+
     pub fn herdr(&self) -> &H {
         &self.herdr
     }

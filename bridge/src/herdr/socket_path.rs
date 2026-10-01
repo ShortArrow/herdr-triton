@@ -76,7 +76,9 @@ fn is_valid_session_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-fn config_dir(
+/// herdr's configuration directory: `$XDG_CONFIG_HOME/herdr`, otherwise
+/// `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere.
+pub fn config_dir(
     env: &impl Fn(&str) -> Option<String>,
     platform: Platform,
     temp_dir: &Path,

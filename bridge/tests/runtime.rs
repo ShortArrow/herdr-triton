@@ -554,3 +554,52 @@ mod listening {
         assert_eq!(rt.tick(10).unwrap_err(), Exit::DeviceLost);
     }
 }
+
+mod layout {
+    use super::*;
+    use bridge::layout::Layout;
+    use bridge::state::Key;
+
+    /// Select on the left, Jump in the middle, Approve on the right.
+    fn swapped(agents: Vec<Agent>) -> Runtime<FakeHerdr, FakeKeys> {
+        let layout = Layout::new([Key::Select, Key::Jump, Key::Approve]).unwrap();
+        let mut rt = Runtime::new(
+            FakeHerdr::new(agents),
+            FakeKeys::default(),
+            keys(),
+            RunMode::Run,
+        )
+        .with_layout(layout);
+        rt.start(0).unwrap();
+        rt
+    }
+
+    #[test]
+    fn a_press_acts_as_the_key_placed_there_and_flashes_there() {
+        let mut rt = swapped(vec![blocked("a", false)]);
+        rt.keys_mut()
+            .events
+            .push_back((Position::Middle, Edge::Down));
+        rt.tick(10).unwrap();
+        assert_eq!(
+            rt.herdr().requests[2],
+            Request::AgentFocus { target: "a".into() }
+        );
+        assert_eq!(rt.keys().flashes, vec![(Position::Middle, palette::WHITE)]);
+    }
+
+    #[test]
+    fn each_keys_led_shows_at_its_position() {
+        let mut rt = swapped(vec![]);
+        rt.tick(10).unwrap();
+        let dark = Led {
+            rgb: palette::OFF,
+            mode: Mode::Off,
+        };
+        let white = Led {
+            rgb: palette::WHITE,
+            mode: Mode::Breathe,
+        };
+        assert_eq!(rt.keys().shown.last(), Some(&[dark, white, dark]));
+    }
+}

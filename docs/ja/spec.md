@@ -385,6 +385,7 @@ USB CDC-ACM 上で、SCPI 風のテキストを1行1コマンドでやりとり�
 | `rp2040-hal` | 0.11 | `ws2812-pio` 0.9 が 0.12 とはビルドできない |
 | `usb-device` | 0.3 | `drooling` と `usbd-serial` 0.2 が要求する |
 | `windows-sys` | 0.59 | 名前付きミューテックスとイベント、`WaitNamedPipeW`、ハンドルの継承、プロセス作成のフラグ |
+| `toml` | 0.9 | `config.toml` を読む。パーサーと serde 対応だけを使う |
 | `serialport` | 4 | Windows / Linux / macOS でポートを USB のシリアル番号付きで列挙できる |
 
 プラグインには、プラグイン機能を持つ herdr が要る（`min_herdr_version` は 0.9.1。この仕様がもともと要求するバージョン）。

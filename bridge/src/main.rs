@@ -22,6 +22,7 @@ use std::process::ExitCode;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+use bridge::config::{self, Config};
 use bridge::device::{find_port, Device};
 use bridge::herdr::client::Client;
 use bridge::herdr::socket_path::{for_session, resolve, Platform};
@@ -76,8 +77,10 @@ fn in_process(socket: &Path, mode: Mode, log: &mut Log) -> ExitCode {
         }
     };
     log.line(&format!("serving {name}"));
+    let config = read_config(log);
     let clock = Instant::now();
-    let mut runtime = Runtime::new(Client::new(socket.into()), keypad, prompt_keys(), mode);
+    let mut runtime = Runtime::new(Client::new(socket.into()), keypad, prompt_keys(), mode)
+        .with_layout(config.layout);
     let ended = serve(&mut runtime, &clock, |d| {
         sleep(d);
         None
@@ -151,6 +154,7 @@ fn listen(socket: &Path, mut port: String) -> ExitCode {
     };
     let wait = |d| claim.wait(d).ok().flatten();
     log.line(&format!("listen: herdr socket {}", socket.display()));
+    let config = read_config(&mut log);
     let clock = Instant::now();
     loop {
         match open_keypad(&port) {
@@ -161,7 +165,8 @@ fn listen(socket: &Path, mut port: String) -> ExitCode {
                     keypad,
                     prompt_keys(),
                     Mode::Listen,
-                );
+                )
+                .with_layout(config.layout);
                 let ended = serve(&mut runtime, &clock, wait);
                 log.line(&format!("listen: {ended:?}"));
                 if ended != Ended::Exit(Exit::DeviceLost) {
@@ -348,6 +353,17 @@ fn open_keypad(name: &str) -> Result<Keypad, KeypadError> {
         Ok(PROTOCOL_VERSION) => Ok(keypad),
         other => Err(KeypadError::Protocol(other)),
     }
+}
+
+/// Reads `config.toml` once (ADR 0013), logging why it was not used.
+fn read_config(log: &mut Log) -> Config {
+    let env = |k: &str| std::env::var(k).ok();
+    let path = config::path(env, Platform::current(), &std::env::temp_dir());
+    let (config, warning) = config::load(&path);
+    if let Some(warning) = warning {
+        log.line(&warning);
+    }
+    config
 }
 
 fn socket(session: Option<&str>) -> PathBuf {

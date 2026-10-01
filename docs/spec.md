@@ -330,6 +330,7 @@ The `protocol` crate holds the typed commands and replies and their text form, u
 | `rp2040-hal` | 0.11 | `ws2812-pio` 0.9 does not build against 0.12 |
 | `usb-device` | 0.3 | Required by `drooling` and `usbd-serial` 0.2 |
 | `windows-sys` | 0.59 | Named mutex and events, `WaitNamedPipeW`, handle inheritance and process creation flags |
+| `toml` | 0.9 | Reads `config.toml`, with only its parser and serde support |
 | `serialport` | 4 | Lists ports with their USB serial numbers on Windows, Linux and macOS |
 
 The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the version this specification requires anyway).

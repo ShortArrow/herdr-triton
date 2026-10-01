@@ -16,6 +16,15 @@ impl Default for Layout {
 }
 
 impl Layout {
+    /// The layout with `keys` at the left, middle and right position, or
+    /// `None` unless each key appears once.
+    pub fn new(keys: [Key; 3]) -> Option<Self> {
+        Key::ALL
+            .iter()
+            .all(|k| keys.contains(k))
+            .then_some(Layout(keys))
+    }
+
     /// The key at `pos`.
     pub fn key_at(&self, pos: Position) -> Key {
         self.0[index(pos)]
