@@ -123,13 +123,35 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 
 ## Keys
 
-| Position | Name | Action |
+| Default position | Name | Action |
 |---|---|---|
 | left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between every agent (ADR 0011) |
 | middle | Approve | Confirm the highlighted option of the focused prompt |
 | right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first |
 
 To approve, press Jump, then Approve. To pick another option, such as rejecting, press Select until it is highlighted, then Approve. See ADR 0006.
+
+`layout` in "Configuration" moves the keys to other positions (ADR 0013). A key takes its LED along: the LED above a key shows that key's state as in "LEDs", and flashes for it.
+
+## Configuration
+
+`bridge` reads `config.toml` from the plugin's configuration directory: `HERDR_PLUGIN_CONFIG_DIR` when herdr sets it, otherwise `<config>/plugins/config/shortarrow.herdr-triton`, with `<config>` as in "Connection". `herdr plugin config-dir shortarrow.herdr-triton` prints it.
+
+```toml
+layout = ["jump", "approve", "select"]
+```
+
+| Field | Value | Default |
+|---|---|---|
+| `layout` | The keys at the left, middle and right position: `"jump"`, `"approve"` and `"select"`, each once | `["jump", "approve", "select"]` |
+
+| Given | Then |
+|---|---|
+| No file | The defaults |
+| The file does not parse as TOML, or `layout` is not one of each name | The defaults, and a log line saying why |
+| A field this table does not name | Ignored |
+
+`bridge` reads the file once when it starts; a listener keeps the configuration it started with until `bridge stop`.
 
 ## bridge state
 
@@ -191,7 +213,7 @@ Approve and Select refresh the snapshot right before deciding, so the decision u
 
 ### Prompt keys
 
-Keyed by herdr's agent id, in a configuration file.
+Keyed by herdr's agent id. They are built in; "Configuration" does not carry them yet.
 
 | Agent id | Confirm keys (default) | Select keys (default) | List wraps | Back keys (default) |
 |---|---|---|---|---|
