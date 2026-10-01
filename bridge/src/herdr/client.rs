@@ -49,6 +49,12 @@ impl Client {
             .map_err(CallError::Io)?;
         decode_response(line.trim_end()).map_err(CallError::Wire)
     }
+
+    /// Whether herdr's endpoint exists. Nothing connects to it, so herdr
+    /// sees no request.
+    pub fn present(&self) -> bool {
+        present(&self.path)
+    }
 }
 
 /// A connection whose every read waits no later than `deadline`.
@@ -96,6 +102,12 @@ fn connect(path: &Path, _deadline: Instant) -> io::Result<UnixStream> {
 }
 
 #[cfg(unix)]
+fn present(path: &Path) -> bool {
+    use std::os::unix::fs::FileTypeExt;
+    std::fs::metadata(path).is_ok_and(|m| m.file_type().is_socket())
+}
+
+#[cfg(unix)]
 impl Readable for UnixStream {
     fn wait_readable(&mut self, deadline: Instant) -> io::Result<()> {
         self.set_read_timeout(Some(remaining(deadline)?))
@@ -114,8 +126,7 @@ fn connect(path: &Path, deadline: Instant) -> io::Result<File> {
     use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
     use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
 
-    let name = format!(r"\\.\pipe\{}", path.display());
-    let wide: Vec<u16> = name.encode_utf16().chain([0]).collect();
+    let (name, wide) = pipe_name(path);
     loop {
         match std::fs::OpenOptions::new()
             .read(true)
@@ -131,6 +142,26 @@ fn connect(path: &Path, deadline: Instant) -> io::Result<File> {
             opened => return opened,
         }
     }
+}
+
+/// The pipe's name, and the same as a null-terminated wide string.
+#[cfg(windows)]
+fn pipe_name(path: &Path) -> (String, Vec<u16>) {
+    let name = format!(r"\\.\pipe\{}", path.display());
+    let wide = name.encode_utf16().chain([0]).collect();
+    (name, wide)
+}
+
+/// A pipe exists while an instance is free, or while every one is busy and
+/// waiting for it times out.
+#[cfg(windows)]
+fn present(path: &Path) -> bool {
+    use windows_sys::Win32::Foundation::ERROR_SEM_TIMEOUT;
+    use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
+
+    let (_, wide) = pipe_name(path);
+    let free = unsafe { WaitNamedPipeW(wide.as_ptr(), 1) } != 0;
+    free || io::Error::last_os_error().raw_os_error() == Some(ERROR_SEM_TIMEOUT as i32)
 }
 
 /// Polls the pipe for bytes, as a synchronous pipe read cannot time out.

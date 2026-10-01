@@ -1,5 +1,5 @@
 //! The bridge's loop: joins herdr, the state core and the keypad, and
-//! decides when a hook's listener exits (ADR 0008).
+//! decides when a listener is quiet, active, or done (ADR 0012).
 
 use std::collections::VecDeque;
 use std::io;
@@ -17,12 +17,21 @@ pub type Millis = u64;
 pub const POLL: Millis = 250;
 /// How often the frame is resent although it has not changed.
 pub const RESEND: Millis = 1000;
-/// How long a hook's listener stays with nothing waiting, or without herdr.
+/// How long a listener stays active with nothing waiting, and how long it
+/// keeps going without herdr.
 pub const LINGER: Millis = 5000;
+/// How often an active loop reads the keys.
+pub const ACTIVE_TICK: Millis = 20;
+/// How often a quiet loop reads the keys.
+pub const QUIET_TICK: Millis = 250;
+/// How often a quiet listener checks that herdr is still there.
+pub const PRESENCE: Millis = 1000;
 
 /// herdr's API, one request at a time.
 pub trait Herdr {
     fn call(&mut self, request: &Request) -> Result<Response, CallError>;
+    /// Whether herdr's endpoint exists, found without sending a request.
+    fn present(&mut self) -> bool;
 }
 
 /// The keypad's keys and LEDs.
@@ -32,19 +41,28 @@ pub trait Keys {
     fn flash(&mut self, pos: Position, rgb: Rgb) -> io::Result<()>;
 }
 
-/// `Run` keeps going; `Hook` exits when idle or when herdr is gone.
+/// `Run` stays active and keeps going; `Listen` goes quiet while nothing
+/// waits, and exits when herdr is gone or unsupported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Run,
-    Hook,
+    Listen,
 }
 
 /// Why the loop ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Exit {
-    Idle,
     HerdrGone,
+    Incompatible,
     DeviceLost,
+}
+
+/// Active polls herdr; quiet only reads the keys and checks, every
+/// [`PRESENCE`] since `checked`, that herdr is there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    Active,
+    Quiet { checked: Millis },
 }
 
 pub struct Runtime<H, K> {
@@ -52,6 +70,8 @@ pub struct Runtime<H, K> {
     herdr: H,
     keys: K,
     mode: Mode,
+    phase: Phase,
+    ping_due: bool,
     last_poll: Option<Millis>,
     shown: Option<([Led; 3], Millis)>,
     idle_since: Option<Millis>,
@@ -65,6 +85,8 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
             herdr,
             keys,
             mode,
+            phase: Phase::Active,
+            ping_due: true,
             last_poll: None,
             shown: None,
             idle_since: None,
@@ -90,25 +112,41 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
 
     /// Checks herdr's version and takes the first snapshot.
     pub fn start(&mut self, now: Millis) -> Result<(), Exit> {
-        let cmds = match self.herdr.call(&Request::Ping) {
-            Ok(Response::Pong { version }) if is_supported(&version) => vec![Cmd::Poll],
-            Ok(Response::Pong { .. }) => self.state.update(Msg::Incompatible),
-            _ => self.state.update(Msg::SnapshotFailed),
-        };
-        self.run(cmds, now)?;
+        self.activate(now)?;
         self.watch(now)
     }
 
-    /// One pass: key events, the periodic poll, the LEDs, and the exit rules.
+    /// A hook's wake: a quiet listener becomes active on a fresh snapshot.
+    pub fn wake(&mut self, now: Millis) -> Result<(), Exit> {
+        match self.phase {
+            Phase::Quiet { .. } => {
+                self.activate(now)?;
+                self.watch(now)
+            }
+            Phase::Active => Ok(()),
+        }
+    }
+
+    /// How long the caller waits between ticks.
+    pub fn interval(&self) -> Millis {
+        match self.phase {
+            Phase::Active => ACTIVE_TICK,
+            Phase::Quiet { .. } => QUIET_TICK,
+        }
+    }
+
+    /// One pass: key events, the periodic poll, the LEDs, and the phase and
+    /// exit rules. A key going down while quiet first makes the loop active.
     pub fn tick(&mut self, now: Millis) -> Result<(), Exit> {
         while let Some((pos, edge)) = self.keys.next_key().map_err(|_| Exit::DeviceLost)? {
             if edge == Edge::Down {
+                self.wake(now)?;
                 let cmds = self.state.update(Msg::KeyDown(pos));
                 self.run(cmds, now)?;
             }
         }
         let due = self.last_poll.is_none_or(|t| now.saturating_sub(t) >= POLL);
-        if due && self.state.conn() != Conn::Incompatible {
+        if self.phase == Phase::Active && due && self.state.conn() != Conn::Incompatible {
             self.run(vec![Cmd::Poll], now)?;
         }
         let frame = self.state.frame();
@@ -129,10 +167,7 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
             let msg = match cmd {
                 Cmd::Poll => {
                     self.last_poll = Some(now);
-                    match self.herdr.call(&Request::AgentList) {
-                        Ok(Response::Agents(agents)) => Msg::Snapshot(agents),
-                        _ => Msg::SnapshotFailed,
-                    }
+                    self.snapshot()?
                 }
                 Cmd::Focus { pane_id } => {
                     let reply = self.herdr.call(&Request::AgentFocus { target: pane_id });
@@ -165,10 +200,52 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
         Ok(())
     }
 
-    /// Tracks how long nothing has waited and how long herdr has been gone,
-    /// and ends a hook's loop after [`LINGER`] of either.
+    /// Makes the loop active: the next poll pings first, and it runs now.
+    fn activate(&mut self, now: Millis) -> Result<(), Exit> {
+        self.phase = Phase::Active;
+        self.ping_due = true;
+        self.idle_since = None;
+        self.gone_since = None;
+        self.run(vec![Cmd::Poll], now)
+    }
+
+    /// Lists the agents, pinging herdr first when it was unreachable or has
+    /// not been asked since becoming active.
+    fn snapshot(&mut self) -> Result<Msg, Exit> {
+        if self.ping_due {
+            match self.herdr.call(&Request::Ping) {
+                Ok(Response::Pong { version }) if is_supported(&version) => {}
+                Ok(Response::Pong { .. }) if self.mode == Mode::Listen => {
+                    return Err(Exit::Incompatible)
+                }
+                Ok(Response::Pong { .. }) => return Ok(Msg::Incompatible),
+                _ => return Ok(Msg::SnapshotFailed),
+            }
+            self.ping_due = false;
+        }
+        match self.herdr.call(&Request::AgentList) {
+            Ok(Response::Agents(agents)) => Ok(Msg::Snapshot(agents)),
+            Err(CallError::Io(_)) => {
+                self.ping_due = true;
+                Ok(Msg::SnapshotFailed)
+            }
+            _ => Ok(Msg::SnapshotFailed),
+        }
+    }
+
+    /// Tracks how long nothing has waited and how long herdr has been gone.
+    /// A listener goes quiet after [`LINGER`] of the first, and exits after
+    /// [`LINGER`] of the second; while quiet, herdr is gone when its
+    /// endpoint is.
     fn watch(&mut self, now: Millis) -> Result<(), Exit> {
-        let gone = self.state.conn() == Conn::Disconnected;
+        let gone = match self.phase {
+            Phase::Active => Some(self.state.conn() == Conn::Disconnected),
+            Phase::Quiet { checked } if now.saturating_sub(checked) >= PRESENCE => {
+                self.phase = Phase::Quiet { checked: now };
+                Some(!self.herdr.present())
+            }
+            Phase::Quiet { .. } => None,
+        };
         let idle = self.state.waiting() == 0 && self.state.finished() == 0;
         let since = |flag: bool, clock: &mut Option<Millis>| match flag {
             true => Some(*clock.get_or_insert(now)),
@@ -177,17 +254,20 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
                 None
             }
         };
-        let gone_since = since(gone, &mut self.gone_since);
+        if let Some(gone) = gone {
+            since(gone, &mut self.gone_since);
+        }
         let idle_since = since(idle, &mut self.idle_since);
         if self.mode == Mode::Run {
             return Ok(());
         }
         let lasted = |t: Option<Millis>| t.is_some_and(|t| now.saturating_sub(t) >= LINGER);
-        if lasted(gone_since) {
+        if lasted(self.gone_since) {
             Err(Exit::HerdrGone)
-        } else if lasted(idle_since) {
-            Err(Exit::Idle)
         } else {
+            if self.phase == Phase::Active && lasted(idle_since) {
+                self.phase = Phase::Quiet { checked: now };
+            }
             Ok(())
         }
     }
@@ -196,5 +276,9 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
 impl Herdr for Client {
     fn call(&mut self, request: &Request) -> Result<Response, CallError> {
         Client::call(self, request)
+    }
+
+    fn present(&mut self) -> bool {
+        Client::present(self)
     }
 }

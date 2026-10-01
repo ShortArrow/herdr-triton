@@ -5,7 +5,7 @@ use std::io;
 
 use bridge::herdr::client::CallError;
 use bridge::herdr::wire::{Request, Response};
-use bridge::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime};
+use bridge::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime, ACTIVE_TICK, QUIET_TICK};
 use bridge::state::{palette, Agent, AgentKeys, PromptKeys, Status, Wrap};
 use protocol::{Edge, Led, Mode, Position, Rgb};
 
@@ -17,6 +17,7 @@ struct FakeHerdr {
     refuse: bool,
     screen: String,
     requests: Vec<Request>,
+    presence_checks: usize,
 }
 
 impl FakeHerdr {
@@ -28,6 +29,7 @@ impl FakeHerdr {
             refuse: false,
             screen: String::new(),
             requests: Vec::new(),
+            presence_checks: 0,
         }
     }
 }
@@ -66,6 +68,11 @@ impl Herdr for FakeHerdr {
             Request::AgentRead { .. } => Response::Screen(self.screen.clone()),
             other => panic!("unexpected {other:?}"),
         })
+    }
+
+    fn present(&mut self) -> bool {
+        self.presence_checks += 1;
+        self.reachable
     }
 }
 
@@ -318,41 +325,209 @@ mod leds {
     }
 }
 
-mod exiting {
+mod reconnecting {
     use super::*;
 
     #[test]
-    fn a_hook_exits_after_five_idle_seconds() {
-        let mut rt = started(vec![], RunMode::Hook);
-        assert!(rt.tick(4990).is_ok());
-        assert_eq!(rt.tick(5000).unwrap_err(), Exit::Idle);
+    fn herdr_is_pinged_again_before_the_first_poll_after_it_was_unreachable() {
+        let mut rt = started(vec![], RunMode::Run);
+        rt.herdr_mut().reachable = false;
+        rt.tick(250).unwrap();
+        rt.herdr_mut().reachable = true;
+        rt.tick(500).unwrap();
+        assert_eq!(
+            rt.herdr().requests[2..],
+            [Request::AgentList, Request::Ping, Request::AgentList]
+        );
     }
 
     #[test]
-    fn a_done_agent_keeps_a_hook_listening() {
+    fn a_herdr_that_comes_back_unsupported_shows_solid_red_in_run_mode() {
+        let mut rt = started(vec![], RunMode::Run);
+        rt.herdr_mut().reachable = false;
+        rt.tick(250).unwrap();
+        rt.herdr_mut().reachable = true;
+        rt.herdr_mut().version = "0.9.0".into();
+        rt.tick(500).unwrap();
+        assert_eq!(
+            rt.keys().shown.last(),
+            Some(
+                &[Led {
+                    rgb: palette::RED,
+                    mode: Mode::Solid
+                }; 3]
+            )
+        );
+    }
+
+    #[test]
+    fn a_herdr_that_comes_back_unsupported_ends_a_listener() {
+        let mut rt = started(vec![], RunMode::Listen);
+        rt.herdr_mut().reachable = false;
+        rt.tick(250).unwrap();
+        rt.herdr_mut().reachable = true;
+        rt.herdr_mut().version = "0.9.0".into();
+        assert_eq!(rt.tick(500).unwrap_err(), Exit::Incompatible);
+    }
+}
+
+mod listening {
+    use super::*;
+
+    /// A listener that has had nothing waiting for five seconds.
+    fn quiet() -> Runtime<FakeHerdr, FakeKeys> {
+        let mut rt = started(vec![], RunMode::Listen);
+        for t in (250..=5000).step_by(250) {
+            rt.tick(t).unwrap();
+        }
+        rt.herdr_mut().requests.clear();
+        rt
+    }
+
+    #[test]
+    fn an_unsupported_herdr_ends_a_listener_at_start() {
+        let mut herdr = FakeHerdr::new(vec![]);
+        herdr.version = "0.9.0".into();
+        let mut rt = Runtime::new(herdr, FakeKeys::default(), keys(), RunMode::Listen);
+        assert_eq!(rt.start(0).unwrap_err(), Exit::Incompatible);
+    }
+
+    #[test]
+    fn an_active_listener_reads_keys_every_20_ms() {
+        let rt = started(vec![], RunMode::Listen);
+        assert_eq!((rt.interval(), ACTIVE_TICK), (20, 20));
+    }
+
+    #[test]
+    fn after_five_idle_seconds_it_goes_quiet_and_asks_herdr_nothing() {
+        let mut rt = quiet();
+        assert_eq!((rt.interval(), QUIET_TICK), (250, 250));
+        for t in (5250..=20_000).step_by(250) {
+            rt.tick(t).unwrap();
+        }
+        assert_eq!(rt.herdr().requests, vec![]);
+    }
+
+    #[test]
+    fn a_quiet_listener_breathes_white_on_the_right_key_alone() {
+        let mut rt = quiet();
+        rt.tick(6000).unwrap();
+        let dark = Led {
+            rgb: palette::OFF,
+            mode: Mode::Off,
+        };
+        let white = Led {
+            rgb: palette::WHITE,
+            mode: Mode::Breathe,
+        };
+        assert_eq!(rt.keys().shown.last(), Some(&[dark, dark, white]));
+    }
+
+    #[test]
+    fn a_done_agent_keeps_it_active() {
         let mut done = blocked("d", false);
         done.status = Status::Done;
-        let mut rt = started(vec![done], RunMode::Hook);
+        let mut rt = started(vec![done], RunMode::Listen);
         for t in (250..=10_000).step_by(250) {
             rt.tick(t).unwrap();
         }
+        assert_eq!(rt.interval(), ACTIVE_TICK);
+        assert_eq!(polls(&rt), 41);
     }
 
     #[test]
     fn a_waiting_agent_restarts_the_idle_clock() {
-        let mut rt = started(vec![], RunMode::Hook);
+        let mut rt = started(vec![], RunMode::Listen);
         rt.tick(3000).unwrap();
         rt.herdr_mut().agents = vec![blocked("a", false)];
         rt.tick(3250).unwrap();
         rt.herdr_mut().agents = vec![];
         rt.tick(3500).unwrap();
-        assert!(rt.tick(8490).is_ok());
-        assert_eq!(rt.tick(8500).unwrap_err(), Exit::Idle);
+        rt.tick(8490).unwrap();
+        assert_eq!(rt.interval(), ACTIVE_TICK);
+        rt.tick(8500).unwrap();
+        assert_eq!(rt.interval(), QUIET_TICK);
     }
 
     #[test]
-    fn a_hook_exits_after_five_seconds_without_herdr() {
-        let mut rt = started(vec![blocked("a", false)], RunMode::Hook);
+    fn a_wake_pings_takes_a_snapshot_and_makes_it_active() {
+        let mut rt = quiet();
+        rt.herdr_mut().agents = vec![blocked("a", false)];
+        rt.wake(6000).unwrap();
+        assert_eq!(rt.herdr().requests, [Request::Ping, Request::AgentList]);
+        assert_eq!(rt.interval(), ACTIVE_TICK);
+    }
+
+    #[test]
+    fn a_woken_listener_with_nothing_waiting_stays_active_for_five_seconds() {
+        let mut rt = quiet();
+        rt.wake(6000).unwrap();
+        rt.tick(10_990).unwrap();
+        assert_eq!(rt.interval(), ACTIVE_TICK);
+        rt.tick(11_000).unwrap();
+        assert_eq!(rt.interval(), QUIET_TICK);
+    }
+
+    #[test]
+    fn a_wake_while_active_asks_nothing_extra() {
+        let mut rt = started(vec![], RunMode::Listen);
+        rt.wake(10).unwrap();
+        assert_eq!(rt.herdr().requests, [Request::Ping, Request::AgentList]);
+    }
+
+    #[test]
+    fn a_key_wakes_it_and_is_handled_on_the_fresh_snapshot() {
+        let mut rt = quiet();
+        rt.herdr_mut().agents = vec![blocked("a", false)];
+        rt.keys_mut().events.push_back((Position::Left, Edge::Down));
+        rt.tick(6000).unwrap();
+        assert_eq!(
+            rt.herdr().requests[..3],
+            [
+                Request::Ping,
+                Request::AgentList,
+                Request::AgentFocus { target: "a".into() }
+            ]
+        );
+        assert_eq!(rt.interval(), ACTIVE_TICK);
+    }
+
+    #[test]
+    fn a_released_key_leaves_it_quiet() {
+        let mut rt = quiet();
+        rt.keys_mut().events.push_back((Position::Left, Edge::Up));
+        rt.tick(6000).unwrap();
+        assert_eq!(rt.herdr().requests, vec![]);
+        assert_eq!(rt.interval(), QUIET_TICK);
+    }
+
+    #[test]
+    fn a_quiet_listener_checks_herdr_is_there_once_a_second() {
+        let mut rt = quiet();
+        let before = rt.herdr().presence_checks;
+        for t in (5250..=10_000).step_by(250) {
+            rt.tick(t).unwrap();
+        }
+        assert_eq!(rt.herdr().presence_checks - before, 5);
+    }
+
+    #[test]
+    fn a_quiet_listener_exits_five_seconds_after_herdr_disappears() {
+        let mut rt = quiet();
+        rt.herdr_mut().reachable = false;
+        let mut exit = None;
+        for t in (5250..=20_000).step_by(250) {
+            if let Err(e) = rt.tick(t) {
+                exit = Some((t, e));
+                break;
+            }
+        }
+        assert_eq!(exit, Some((11_000, Exit::HerdrGone)));
+    }
+
+    #[test]
+    fn an_active_listener_exits_after_five_seconds_without_herdr() {
+        let mut rt = started(vec![blocked("a", false)], RunMode::Listen);
         rt.herdr_mut().reachable = false;
         rt.tick(250).unwrap();
         assert!(rt.tick(5240).is_ok());
@@ -360,10 +535,14 @@ mod exiting {
     }
 
     #[test]
-    fn run_mode_never_exits_for_idleness_or_a_missing_herdr() {
+    fn run_mode_never_goes_quiet_or_exits_without_herdr() {
         let mut rt = started(vec![], RunMode::Run);
+        for t in (0..=10_000).step_by(250) {
+            rt.tick(t).unwrap();
+        }
+        assert_eq!(rt.interval(), ACTIVE_TICK);
         rt.herdr_mut().reachable = false;
-        for t in (0..=20_000).step_by(250) {
+        for t in (10_250..=20_000).step_by(250) {
             rt.tick(t).unwrap();
         }
     }

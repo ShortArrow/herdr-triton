@@ -1,9 +1,9 @@
-//! `bridge run` and `bridge hook` (ADR 0008).
+//! `bridge run` and `bridge hook` (ADR 0012).
 //!
 //! ```text
 //! bridge [--session <name>] run    keep going until the device or herdr fails
 //! bridge [--session <name>] hook   become the listener if the device is free,
-//!                                  and exit once idle
+//!                                  quiet while nothing waits, until herdr goes
 //! ```
 //!
 //! `hook` is what the herdr plugin runs; it logs to
@@ -25,7 +25,6 @@ use protocol::scpi::PROTOCOL_VERSION;
 
 /// How long a hook keeps trying a port another bridge holds.
 const PORT_RETRY: Duration = Duration::from_millis(500);
-const TICK: Duration = Duration::from_millis(20);
 /// How long a query waits for the keypad's reply.
 const REPLY_TIMEOUT: Duration = Duration::from_millis(200);
 
@@ -34,7 +33,7 @@ fn main() -> ExitCode {
     let session = take_option(&mut args, "--session");
     let mode = match args.as_slice() {
         [cmd] if cmd == "run" => Mode::Run,
-        [cmd] if cmd == "hook" => Mode::Hook,
+        [cmd] if cmd == "hook" => Mode::Listen,
         _ => {
             eprintln!("usage: bridge [--session <name>] run|hook");
             return ExitCode::FAILURE;
@@ -47,7 +46,7 @@ fn main() -> ExitCode {
     let ports = serialport::available_ports().unwrap_or_default();
     let Some(name) = find_port(&ports) else {
         log.line("no TRITON- keypad found");
-        return if mode == Mode::Hook {
+        return if mode == Mode::Listen {
             ExitCode::SUCCESS
         } else {
             ExitCode::FAILURE
@@ -55,7 +54,7 @@ fn main() -> ExitCode {
     };
     let Some(port) = open(&name, mode) else {
         log.line(&format!("{name} is held by another bridge"));
-        return if mode == Mode::Hook {
+        return if mode == Mode::Listen {
             ExitCode::SUCCESS
         } else {
             ExitCode::FAILURE
@@ -79,8 +78,8 @@ fn main() -> ExitCode {
     let exit = run_until_exit(&mut runtime, now);
     log.line(&format!("exit: {exit:?}"));
     match exit {
-        Exit::Idle | Exit::HerdrGone => ExitCode::SUCCESS,
-        Exit::DeviceLost => ExitCode::FAILURE,
+        Exit::HerdrGone => ExitCode::SUCCESS,
+        Exit::Incompatible | Exit::DeviceLost => ExitCode::FAILURE,
     }
 }
 
@@ -93,7 +92,7 @@ where
         return exit;
     }
     loop {
-        sleep(TICK);
+        sleep(Duration::from_millis(runtime.interval()));
         if let Err(exit) = runtime.tick(now()) {
             return exit;
         }
@@ -113,7 +112,7 @@ fn socket(session: Option<&str>) -> PathBuf {
 /// [`PORT_RETRY`], since the listener it replaces may be closing the port.
 fn open(name: &str, mode: Mode) -> Option<Box<dyn serialport::SerialPort>> {
     let deadline = Instant::now()
-        + if mode == Mode::Hook {
+        + if mode == Mode::Listen {
             PORT_RETRY
         } else {
             Duration::ZERO
@@ -167,7 +166,7 @@ struct Log(Box<dyn Write>);
 impl Log {
     fn open(mode: Mode) -> Self {
         let file = std::env::var_os("HERDR_PLUGIN_STATE_DIR")
-            .filter(|_| mode == Mode::Hook)
+            .filter(|_| mode == Mode::Listen)
             .and_then(|dir| {
                 OpenOptions::new()
                     .create(true)

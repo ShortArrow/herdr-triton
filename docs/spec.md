@@ -34,13 +34,14 @@ A resident `bridge listen` serves the keypad for the life of the herdr server th
 | listener | it starts and the mutex is already held | it exits |
 | listener, quiet | the wake event is set, or a key goes down | it takes a snapshot and becomes active; a key is then handled on that snapshot |
 | listener, active | `queue` and `done` have both been empty for 5 s | it becomes quiet |
-| listener | herdr has been unreachable for 5 s, or its version is not supported | it exits |
+| listener, active | herdr has been unreachable for 5 s, or its version is not supported | it exits |
+| listener, quiet | herdr's endpoint has been missing for 5 s | it exits |
 | listener | `bridge stop` sets the stop event | it exits |
 | listener | the keypad fails or disappears | it closes the port and runs `bridge find-port` every second until the keypad is back |
 
 | Mode | Requests to herdr | `KEY:EVENt?` | LEDs |
 |---|---|---|---|
-| quiet | none | every 250 ms | right LED breathing white, the others off |
+| quiet | none; every second it checks that herdr's endpoint exists, without connecting | every 250 ms | right LED breathing white, the others off |
 | active | `agent.list` every 250 ms and after each request | every 20 ms | as in "LEDs" |
 
 On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `bridge hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `bridge.log`.
@@ -62,7 +63,7 @@ The listener stays at or under 1 MB in Task Manager's Memory column (active priv
 
 ### Connection
 
-herdr's API accepts one request per connection: the server reads the first line and answers it. `bridge` opens a new connection for every request. Each request has a 2 s deadline; a request that misses it counts as failed. After herdr becomes reachable again, `bridge` sends `ping` again before its next snapshot.
+herdr's API accepts one request per connection: the server reads the first line and answers it. `bridge` opens a new connection for every request. Each request has a 2 s deadline; a request that misses it counts as failed. Whenever the loop becomes active, and after herdr becomes reachable again, `bridge` sends `ping` before its next snapshot. A listener that gets an unsupported version exits; `bridge run` shows `Incompatible`.
 
 One `bridge` serves one herdr session (ADR 0007). `bridge --session <name>` picks it by name, `default` being the default session, and wins over the environment, as herdr's own `--session` does. Without `--session`, the socket path is resolved as herdr resolves it, in this order:
 
@@ -70,7 +71,7 @@ One `bridge` serves one herdr session (ADR 0007). `bridge --session <name>` pick
 2. `HERDR_SESSION`, giving `<config>/sessions/<name>/herdr.sock`
 3. `<config>/herdr.sock`
 
-`<config>` is `$XDG_CONFIG_HOME/herdr` when set, otherwise `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere. On Windows the path string names a named pipe, `\\.\pipe\<path>` (as interprocess `GenericNamespaced` maps it for herdr), and the file at that path is only a marker. `bridge` opens it with `std`, and when every pipe instance is busy it waits for one with `WaitNamedPipeW`.
+`<config>` is `$XDG_CONFIG_HOME/herdr` when set, otherwise `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere. On Windows the path string names a named pipe, `\\.\pipe\<path>` (as interprocess `GenericNamespaced` maps it for herdr), and the file at that path is only a marker. `bridge` opens it with `std`, and when every pipe instance is busy it waits for one with `WaitNamedPipeW`. A quiet listener checks the pipe with `WaitNamedPipeW` alone, which does not connect: the pipe exists when an instance is free or the wait times out. On Unix it checks that the socket file exists.
 
 herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from a herdr pane talks to that pane's session whatever `HERDR_SESSION` says.
 

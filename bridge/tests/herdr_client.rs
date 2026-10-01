@@ -223,3 +223,23 @@ mod busy_pipe {
         assert!(started.elapsed() < Duration::from_millis(1000));
     }
 }
+
+mod presence {
+    use super::*;
+
+    #[test]
+    fn a_listening_herdr_is_present_and_sees_no_connection() {
+        let path = unique_path();
+        let listener = bind(&path);
+        assert!(Client::new(path.clone()).present());
+        listener
+            .set_nonblocking(interprocess::local_socket::ListenerNonblockingMode::Accept)
+            .unwrap();
+        assert!(listener.accept().is_err(), "present() must not connect");
+    }
+
+    #[test]
+    fn a_missing_herdr_is_not_present() {
+        assert!(!Client::new(unique_path()).present());
+    }
+}
