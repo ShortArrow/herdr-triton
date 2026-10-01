@@ -705,10 +705,10 @@ mod frame {
     }
 
     #[test]
-    fn nothing_waiting_or_done_breathes_white_on_the_right_only() {
+    fn nothing_waiting_or_done_breathes_white_on_jump_only() {
         assert_eq!(
             with(vec![]).frame(),
-            [DARK, DARK, led(WHITE, Mode::Breathe)]
+            [led(WHITE, Mode::Breathe), DARK, DARK]
         );
     }
 

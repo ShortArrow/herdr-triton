@@ -41,7 +41,7 @@ A resident `bridge listen` serves the keypad for the life of the herdr server th
 
 | Mode | Requests to herdr | `KEY:EVENt?` | LEDs |
 |---|---|---|---|
-| quiet | none; every second it checks that herdr's endpoint exists, without connecting | every 250 ms | right LED breathing white, the others off |
+| quiet | none; every second it checks that herdr's endpoint exists, without connecting | every 250 ms | Jump's LED breathing white, the others off |
 | active | `agent.list` every 250 ms and after each request | every 20 ms | as in "LEDs" |
 
 On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `bridge hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `bridge.log`. It starts `bridge find-port` with `CREATE_NO_WINDOW`, since a console program started from a process without a console otherwise opens a console window.
@@ -218,7 +218,7 @@ The steady LED output is a function of `(conn, device, len(queue), len(done), ap
 | `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
 | `Incompatible` | red, solid | red, solid | red, solid |
 | `queue` empty, `done` not empty | green, breathing | off | off |
-| `queue` and `done` empty | off (Jump cycles every agent) | off | white, breathing |
+| `queue` and `done` empty | white, breathing (Jump cycles every agent) | off | off |
 | `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
 | `queue` has 2 or more | reddish amber, breathing | as above | as above |
 

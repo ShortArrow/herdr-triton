@@ -21,7 +21,7 @@ ADR 0011's last tier, Jump through every agent, only works while a listener runs
 
 - `bridge hook` is short-lived. If a listener holds the named mutex, it signals the listener's wake event and exits. Otherwise it finds the keypad's port, spawns `bridge listen --port <COM>` and exits. Before spawning it clears the inherit flag on its own standard handles; the child is detached from any console, in a new process group, with its working directory outside the plugin
 - `bridge listen` is resident for the life of the herdr server it serves. It holds the named mutex, and is quiet or active:
-  - Quiet, while nothing waits or is `done`: no requests to herdr; `KEY:EVENt?` every 250 ms; only the right LED shows, breathing white. Every second it checks that herdr's endpoint still exists without connecting to it (`WaitNamedPipeW` on Windows), so a herdr that stopped is noticed although it is never asked. A wake event or any key press makes it active, sending `ping` and taking a snapshot before acting on the key
+  - Quiet, while nothing waits or is `done`: no requests to herdr; `KEY:EVENt?` every 250 ms; only Jump's LED shows, breathing white, as Jump is the one key that still acts. Every second it checks that herdr's endpoint still exists without connecting to it (`WaitNamedPipeW` on Windows), so a herdr that stopped is noticed although it is never asked. A wake event or any key press makes it active, sending `ping` and taking a snapshot before acting on the key
   - Active: the loop of ADR 0004 and ADR 0011, back to quiet 5 s after nothing waits or is `done`
 - The listener exits when herdr is unreachable, or its endpoint missing, for 5 s, when herdr's version is not supported, or on `bridge stop`. Every herdr call has a timeout. A device error does not end it: it looks for the keypad again every second through a short-lived `bridge find-port`, so SetupAPI never loads into the listener
 - The first herdr session whose hook starts the listener keeps the keypad; no hand-over between sessions
@@ -33,7 +33,7 @@ ADR 0011's last tier, Jump through every agent, only works while a listener runs
 - While nothing waits, herdr sees no requests and the keypad is polled four times a second
 - Rebuilding the plugin needs `bridge stop` first on Windows, since a running executable cannot be replaced
 - A serial terminal can reach the keypad only after `bridge stop`
-- While nothing waits, only the right LED breathes white instead of `NoHost`'s dim white on all three, so dim white now means no listener: herdr is not running or the bridge failed
+- While nothing waits, only Jump's LED breathes white instead of `NoHost`'s dim white on all three, so dim white now means no listener: herdr is not running or the bridge failed
 - `WAVe`, a rainbow across the keys, was tried as the idle display and kept only for checking the LEDs
 - The mechanisms named here (named mutex and event, detached spawn, handle inheritance) are Windows-specific; Linux and macOS need equivalents before they are supported
 

@@ -8,13 +8,13 @@ A three-key RP2040-Keyboard-3 for herdr agents waiting on approval: one key jump
 
 | Key | Name | Does | LED |
 |---|---|---|---|
-| left | Jump | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | amber breathing while anything waits, green breathing while agents are finished, off otherwise |
+| left | Jump | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | amber breathing while anything waits, green breathing while agents are finished, white breathing otherwise |
 | middle | Approve | Confirm the highlighted option | green when the focused pane can be confirmed |
-| right | Select | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed; white breathing while nothing waits |
+| right | Select | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
 
 To approve, press Jump, then Approve. To pick another option, such as No, press Select until it is highlighted, then Approve. A pressed key flashes white when herdr took the request and red when it did not.
 
-All three LEDs dim white means no listener is running, which is normal while nothing waits. All three blinking red means herdr cannot be reached; a listener started by the plugin gives up after 5 s and the LEDs return to dim white.
+All three LEDs dim white means no listener is running: herdr is not running, or the bridge failed. All three blinking red means herdr cannot be reached; a listener started by the plugin gives up after 5 s and the LEDs return to dim white.
 
 ## Setup
 

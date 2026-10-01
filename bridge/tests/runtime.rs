@@ -409,7 +409,7 @@ mod listening {
     }
 
     #[test]
-    fn a_quiet_listener_breathes_white_on_the_right_key_alone() {
+    fn a_quiet_listener_breathes_white_on_jump_alone() {
         let mut rt = quiet();
         rt.tick(6000).unwrap();
         let dark = Led {
@@ -420,7 +420,7 @@ mod listening {
             rgb: palette::WHITE,
             mode: Mode::Breathe,
         };
-        assert_eq!(rt.keys().shown.last(), Some(&[dark, dark, white]));
+        assert_eq!(rt.keys().shown.last(), Some(&[white, dark, dark]));
     }
 
     #[test]
