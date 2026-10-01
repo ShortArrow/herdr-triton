@@ -50,7 +50,7 @@ The first herdr session whose hook starts a listener keeps the keypad until its 
 
 ### Memory
 
-The listener stays at or under 1 MB in Task Manager's Memory column (active private working set), taken as the highest value over a 1 h run. To that end it links the C runtime statically, talks to herdr over `std` named pipes instead of `interprocess`, decodes herdr's replies into typed structs without `serde_json::Value`, and never enumerates serial ports itself.
+The listener stays at or under 1 MB in Task Manager's Memory column (active private working set), taken as the highest value over a 1 h run. To that end it links the C runtime statically, talks to herdr over `std` named pipes instead of `interprocess`, decodes herdr's replies into typed structs without `serde_json::Value`, and never enumerates serial ports itself. The `bridge` executable delay-loads `setupapi.dll`, `cfgmgr32.dll`, `advapi32.dll` and `bcryptprimitives.dll`, which only port enumeration and hashing with a random seed call, so a listener loads none of them; its own maps are ordered maps, which need no seed.
 
 ## herdr
 

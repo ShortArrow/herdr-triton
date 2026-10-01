@@ -1,7 +1,7 @@
 //! The bridge's state machine: herdr snapshots and key presses in,
 //! herdr requests and LED output out. No IO.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use protocol::{Led, Mode, Rgb};
 
@@ -130,7 +130,7 @@ pub enum Wrap {
 }
 
 /// Prompt keys per herdr agent id.
-pub type AgentKeys = HashMap<String, PromptKeys>;
+pub type AgentKeys = BTreeMap<String, PromptKeys>;
 
 /// A blocked agent waiting in the queue.
 #[derive(Debug, Clone, PartialEq, Eq)]
