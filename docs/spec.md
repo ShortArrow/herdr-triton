@@ -40,7 +40,7 @@ A resident `bridge listen` serves the keypad for the life of the herdr server th
 
 | Mode | Requests to herdr | `KEY:EVENt?` | LEDs |
 |---|---|---|---|
-| quiet | none | every 250 ms | `LED:ALL` in `WAVe` |
+| quiet | none | every 250 ms | right LED breathing white, the others off |
 | active | `agent.list` every 250 ms and after each request | every 20 ms | as in "LEDs" |
 
 On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `bridge hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `bridge.log`.
@@ -217,7 +217,7 @@ The steady LED output is a function of `(conn, device, len(queue), len(done), ap
 | `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
 | `Incompatible` | red, solid | red, solid | red, solid |
 | `queue` empty, `done` not empty | green, breathing | off | off |
-| `queue` and `done` empty | `WAVe` (Jump cycles every agent) | `WAVe` | `WAVe` |
+| `queue` and `done` empty | off (Jump cycles every agent) | off | white, breathing |
 | `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
 | `queue` has 2 or more | reddish amber, breathing | as above | as above |
 
@@ -250,7 +250,7 @@ A key reports `Down` or `Up` once its level has stayed the same for 5 ms. Report
 | `Blink` | The colour for 500 ms, dark for 500 ms |
 | `Breathe` | The colour, its brightness rising from 10 % to 100 % and back over 2 s |
 | `Flash` | The flash colour on that key for 150 ms, over whatever it showed |
-| `Wave` | A rainbow that moves across the keys: LED `n` shows hue `360° × t / 3 s + 120° × (n − 1)` at full saturation, its brightness breathing as `Breathe`; the colour sent is ignored |
+| `Wave` | For checking the LEDs; the bridge does not use it. A rainbow that moves across the keys: LED `n` shows hue `360° × t / 3 s + 120° × (n − 1)` at full saturation, its brightness breathing as `Breathe`; the colour sent is ignored |
 | `NoHost` | White at 8/255 on all three |
 
 Every colour is scaled so that full brightness is 64/255; WS2812s at full power are uncomfortable to look at. The LEDs take RGB and `ws2812-pio` sends GRB, so the firmware swaps red and green last.
