@@ -21,7 +21,6 @@ use bridge::herdr::client::Client;
 use bridge::herdr::socket_path::{for_session, resolve, Platform};
 use bridge::herdr::wire::{is_supported, Request, Response};
 use bridge::{position, prompt_screen};
-use serde_json::Value;
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -61,7 +60,7 @@ fn socket(session: Option<&str>) -> PathBuf {
 
 /// Prints the id, or the JSON position, of one level.
 fn read_level(client: &Client, level: &str, target: &str, json: bool) -> ExitCode {
-    let found: Option<(Option<String>, Value)> = match level {
+    let found: Option<(Option<String>, String)> = match level {
         "select_id" => match client.call(&Request::AgentRead {
             target: target.into(),
         }) {

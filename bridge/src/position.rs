@@ -2,21 +2,29 @@
 //! (`herdr_probe read`): the workspace in a session, the pane in a
 //! workspace, and the highlighted option in a pane's prompt.
 
+use serde::Serialize;
+
 use crate::herdr::wire::Node;
 use crate::prompt_screen::PromptOptions;
 
 /// `{"w", "p", "s", "options"}` for `pane_id` (`w<workspace>:p<pane>`):
 /// where the agent is and which option is highlighted.
-pub fn select_json(pane_id: &str, prompt: Option<&PromptOptions>) -> serde_json::Value {
+pub fn select_json(pane_id: &str, prompt: Option<&PromptOptions>) -> String {
+    #[derive(Serialize)]
+    struct Select<'a> {
+        w: &'a str,
+        p: &'a str,
+        s: Option<u32>,
+        options: Vec<&'a str>,
+    }
     let workspace = pane_id.split_once(':').map_or(pane_id, |(w, _)| w);
-    let labels: Vec<&str> = prompt
-        .map(|p| p.options.iter().map(|(_, label)| label.as_str()).collect())
-        .unwrap_or_default();
-    serde_json::json!({
-        "w": short_workspace(workspace),
-        "p": short_pane(pane_id),
-        "s": prompt.and_then(|p| p.highlighted),
-        "options": labels,
+    to_json(&Select {
+        w: short_workspace(workspace),
+        p: short_pane(pane_id),
+        s: prompt.and_then(|p| p.highlighted),
+        options: prompt
+            .map(|p| p.options.iter().map(|(_, label)| label.as_str()).collect())
+            .unwrap_or_default(),
     })
 }
 
@@ -44,12 +52,17 @@ pub fn pane_id(panes: &[Node]) -> Result<String, NotActive> {
 }
 
 /// `{"w", "p", "panes"}`: the workspace, its focused pane, and every pane.
-pub fn pane_json(workspace_id: &str, panes: &[Node]) -> serde_json::Value {
-    let all: Vec<&str> = panes.iter().map(|p| short_pane(&p.id)).collect();
-    serde_json::json!({
-        "w": short_workspace(workspace_id),
-        "p": pane_id(panes).ok(),
-        "panes": all,
+pub fn pane_json(workspace_id: &str, panes: &[Node]) -> String {
+    #[derive(Serialize)]
+    struct Pane<'a> {
+        w: &'a str,
+        p: Option<String>,
+        panes: Vec<&'a str>,
+    }
+    to_json(&Pane {
+        w: short_workspace(workspace_id),
+        p: pane_id(panes).ok(),
+        panes: panes.iter().map(|p| short_pane(&p.id)).collect(),
     })
 }
 
@@ -60,13 +73,23 @@ pub fn workspace_id(workspaces: &[Node]) -> Option<String> {
 
 /// `{"session", "w", "workspaces"}`: the session, its focused workspace,
 /// and every workspace.
-pub fn workspace_json(session: &str, workspaces: &[Node]) -> serde_json::Value {
-    let all: Vec<&str> = workspaces.iter().map(|w| short_workspace(&w.id)).collect();
-    serde_json::json!({
-        "session": session,
-        "w": workspace_id(workspaces),
-        "workspaces": all,
+pub fn workspace_json(session: &str, workspaces: &[Node]) -> String {
+    #[derive(Serialize)]
+    struct Workspace<'a> {
+        session: &'a str,
+        w: Option<String>,
+        workspaces: Vec<&'a str>,
+    }
+    to_json(&Workspace {
+        session,
+        w: workspace_id(workspaces),
+        workspaces: workspaces.iter().map(|w| short_workspace(&w.id)).collect(),
     })
+}
+
+/// Field order is declaration order, which the probe's output keeps.
+fn to_json(value: &impl Serialize) -> String {
+    serde_json::to_string(value).expect("plain structs always serialize")
 }
 
 fn focused(nodes: &[Node]) -> Option<&Node> {
