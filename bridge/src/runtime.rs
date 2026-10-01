@@ -8,6 +8,7 @@ use protocol::{Edge, Led, Position, Rgb};
 
 use crate::herdr::client::{CallError, Client};
 use crate::herdr::wire::{is_supported, Request, Response};
+use crate::layout::Layout;
 use crate::state::{AgentKeys, Cmd, Conn, Msg, State};
 
 /// Milliseconds on a monotonic clock.
@@ -69,6 +70,7 @@ pub struct Runtime<H, K> {
     state: State,
     herdr: H,
     keys: K,
+    layout: Layout,
     mode: Mode,
     phase: Phase,
     ping_due: bool,
@@ -84,6 +86,7 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
             state: State::new(agent_keys),
             herdr,
             keys,
+            layout: Layout::default(),
             mode,
             phase: Phase::Active,
             ping_due: true,
@@ -141,7 +144,7 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
         while let Some((pos, edge)) = self.keys.next_key().map_err(|_| Exit::DeviceLost)? {
             if edge == Edge::Down {
                 self.wake(now)?;
-                let cmds = self.state.update(Msg::KeyDown(pos));
+                let cmds = self.state.update(Msg::KeyDown(self.layout.key_at(pos)));
                 self.run(cmds, now)?;
             }
         }
@@ -149,7 +152,7 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
         if self.phase == Phase::Active && due && self.state.conn() != Conn::Incompatible {
             self.run(vec![Cmd::Poll], now)?;
         }
-        let frame = self.state.frame();
+        let frame = self.layout.arrange(self.state.frame());
         let stale = self
             .shown
             .is_none_or(|(shown, at)| shown != frame || now.saturating_sub(at) >= RESEND);
@@ -190,7 +193,8 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
                         _ => Msg::Screen(None),
                     }
                 }
-                Cmd::Flash { pos, rgb } => {
+                Cmd::Flash { key, rgb } => {
+                    let pos = self.layout.position_of(key);
                     self.keys.flash(pos, rgb).map_err(|_| Exit::DeviceLost)?;
                     continue;
                 }

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use protocol::{Led, Mode, Position, Rgb};
+use protocol::{Led, Mode, Rgb};
 
 /// An agent's status as `agent.list` reports it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +25,20 @@ pub struct Agent {
     pub state_change_seq: u64,
 }
 
+/// The keypad's keys, by what they do (specification, "Keys"). Which
+/// position each takes is the runtime's concern (ADR 0013).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Key {
+    Jump,
+    Approve,
+    Select,
+}
+
+impl Key {
+    /// Every key, in the order of [`State::frame`].
+    pub const ALL: [Key; 3] = [Key::Jump, Key::Approve, Key::Select];
+}
+
 /// Reachability of herdr.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Conn {
@@ -40,7 +54,7 @@ pub enum Msg {
     Incompatible,
     Snapshot(Vec<Agent>),
     SnapshotFailed,
-    KeyDown(Position),
+    KeyDown(Key),
     /// The outcome of the last `Cmd::Focus` or `Cmd::SendKeys`.
     RequestDone {
         ok: bool,
@@ -61,7 +75,7 @@ pub enum Cmd {
         keys: Vec<String>,
     },
     Flash {
-        pos: Position,
+        key: Key,
         rgb: Rgb,
     },
     /// Read the pane's visible screen, answered with `Msg::Screen`.
@@ -134,10 +148,10 @@ enum PromptAction {
 }
 
 impl PromptAction {
-    fn position(self) -> Position {
+    fn key(self) -> Key {
         match self {
-            PromptAction::Confirm => Position::Middle,
-            PromptAction::Select => Position::Right,
+            PromptAction::Confirm => Key::Approve,
+            PromptAction::Select => Key::Select,
         }
     }
 }
@@ -153,9 +167,9 @@ enum Pending {
         pane_id: String,
         keys: PromptKeys,
     },
-    /// A request from `pos` is in flight; `sent` is the confirmation it recorded.
+    /// A request from `key` is in flight; `sent` is the confirmation it recorded.
     Request {
-        pos: Position,
+        key: Key,
         sent: Option<(String, u64)>,
     },
 }
@@ -200,7 +214,7 @@ impl State {
                 let pending = std::mem::replace(&mut self.pending, Pending::None);
                 self.lose_herdr(Conn::Disconnected);
                 match pending {
-                    Pending::Refresh(action) => error(action.position()),
+                    Pending::Refresh(action) => error(action.key()),
                     _ => Vec::new(),
                 }
             }
@@ -215,10 +229,10 @@ impl State {
                     }
                 }
             }
-            Msg::KeyDown(pos) if self.conn != Conn::Connected => error(pos),
-            Msg::KeyDown(Position::Left) => self.jump(),
-            Msg::KeyDown(Position::Middle) => self.refresh_for(PromptAction::Confirm),
-            Msg::KeyDown(Position::Right) => self.refresh_for(PromptAction::Select),
+            Msg::KeyDown(key) if self.conn != Conn::Connected => error(key),
+            Msg::KeyDown(Key::Jump) => self.jump(),
+            Msg::KeyDown(Key::Approve) => self.refresh_for(PromptAction::Confirm),
+            Msg::KeyDown(Key::Select) => self.refresh_for(PromptAction::Select),
             Msg::RequestDone { ok } => self.finish_request(ok),
             Msg::Screen(screen) => self.select_on_screen(screen.as_deref()),
         }
@@ -238,7 +252,7 @@ impl State {
         self.conn
     }
 
-    /// The steady LED output, left to right.
+    /// The steady LED output for Jump, Approve and Select, in that order.
     pub fn frame(&self) -> [Led; 3] {
         let dark = Led {
             rgb: palette::OFF,
@@ -358,12 +372,12 @@ impl State {
         match target {
             Some(pane_id) => {
                 self.pending = Pending::Request {
-                    pos: Position::Left,
+                    key: Key::Jump,
                     sent: None,
                 };
                 vec![Cmd::Focus { pane_id }]
             }
-            None => error(Position::Left),
+            None => error(Key::Jump),
         }
     }
 
@@ -384,9 +398,9 @@ impl State {
     }
 
     fn act_on_prompt(&mut self, action: PromptAction) -> Vec<Cmd> {
-        let pos = action.position();
+        let key = action.key();
         let Some((entry, keys)) = self.approvable() else {
-            return error(pos);
+            return error(key);
         };
         let pane_id = entry.pane_id.clone();
         let (keys, sent) = match action {
@@ -406,7 +420,7 @@ impl State {
         if let Some(mark) = &sent {
             self.sent.push(mark.clone());
         }
-        self.pending = Pending::Request { pos, sent };
+        self.pending = Pending::Request { key, sent };
         vec![Cmd::SendKeys { pane_id, keys }]
     }
 
@@ -431,14 +445,14 @@ impl State {
             _ => keys.select,
         };
         self.pending = Pending::Request {
-            pos: Position::Right,
+            key: Key::Select,
             sent: None,
         };
         vec![Cmd::SendKeys { pane_id, keys }]
     }
 
     fn finish_request(&mut self, ok: bool) -> Vec<Cmd> {
-        let Pending::Request { pos, sent } = std::mem::replace(&mut self.pending, Pending::None)
+        let Pending::Request { key, sent } = std::mem::replace(&mut self.pending, Pending::None)
         else {
             return Vec::new();
         };
@@ -448,7 +462,7 @@ impl State {
             }
         }
         let rgb = if ok { palette::WHITE } else { palette::RED };
-        vec![Cmd::Flash { pos, rgb }, Cmd::Poll]
+        vec![Cmd::Flash { key, rgb }, Cmd::Poll]
     }
 }
 
@@ -470,9 +484,9 @@ fn next_after(items: &[&str], focused: Option<&str>) -> Option<String> {
     items.get(index).map(|i| i.to_string())
 }
 
-fn error(pos: Position) -> Vec<Cmd> {
+fn error(key: Key) -> Vec<Cmd> {
     vec![Cmd::Flash {
-        pos,
+        key,
         rgb: palette::RED,
     }]
 }

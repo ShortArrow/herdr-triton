@@ -1,7 +1,7 @@
 use bridge::state::{
-    palette::*, Agent, AgentKeys, Cmd, Conn, Msg, PromptKeys, State, Status, Wrap,
+    palette::*, Agent, AgentKeys, Cmd, Conn, Key, Msg, PromptKeys, State, Status, Wrap,
 };
-use protocol::{Led, Mode, Position, Position::*};
+use protocol::{Led, Mode};
 
 fn agent(pane: &str, status: Status, seq: u64) -> Agent {
     Agent {
@@ -59,8 +59,8 @@ fn focus(pane: &str) -> Vec<Cmd> {
     }]
 }
 
-fn error(pos: Position) -> Vec<Cmd> {
-    vec![Cmd::Flash { pos, rgb: RED }]
+fn error(key: Key) -> Vec<Cmd> {
+    vec![Cmd::Flash { key, rgb: RED }]
 }
 
 fn led(rgb: protocol::Rgb, mode: Mode) -> Led {
@@ -72,18 +72,18 @@ const DARK: Led = Led {
     mode: Mode::Off,
 };
 
-/// Presses `pos` and answers its refresh with `snapshot`.
-fn press_after_refresh(s: &mut State, pos: Position, snapshot: Vec<Agent>) -> Vec<Cmd> {
-    assert_eq!(s.update(Msg::KeyDown(pos)), vec![Cmd::Poll]);
+/// Presses `key` and answers its refresh with `snapshot`.
+fn press_after_refresh(s: &mut State, key: Key, snapshot: Vec<Agent>) -> Vec<Cmd> {
+    assert_eq!(s.update(Msg::KeyDown(key)), vec![Cmd::Poll]);
     s.update(Msg::Snapshot(snapshot))
 }
 
 fn approve(s: &mut State, snapshot: Vec<Agent>) -> Vec<Cmd> {
-    press_after_refresh(s, Middle, snapshot)
+    press_after_refresh(s, Key::Approve, snapshot)
 }
 
 fn select(s: &mut State, snapshot: Vec<Agent>) -> Vec<Cmd> {
-    press_after_refresh(s, Right, snapshot)
+    press_after_refresh(s, Key::Select, snapshot)
 }
 
 fn send(pane: &str, key: &str) -> Vec<Cmd> {
@@ -107,14 +107,14 @@ mod snapshot {
             agent("x", Status::Working, 1),
             blocked("a"),
         ]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("b"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
     }
 
     #[test]
     fn a_newly_blocked_agent_joins_the_tail() {
         let mut s = with(vec![blocked("b")]);
         s.update(Msg::Snapshot(vec![blocked("a"), blocked("b")]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("b"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
     }
 
     #[test]
@@ -124,14 +124,14 @@ mod snapshot {
             agent("a", Status::Working, 2),
             blocked("b"),
         ]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("b"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
     }
 
     #[test]
     fn an_agent_missing_from_the_snapshot_leaves_the_queue() {
         let mut s = with(vec![blocked("a"), blocked("b")]);
         s.update(Msg::Snapshot(vec![blocked("b")]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("b"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
     }
 
     #[test]
@@ -141,7 +141,7 @@ mod snapshot {
             blocked("b"),
             agent("a", Status::Blocked, 9),
         ]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
@@ -161,9 +161,13 @@ mod snapshot {
     fn a_failed_snapshot_disconnects_and_clears_the_queue() {
         let mut s = with(vec![blocked("a")]);
         s.update(Msg::SnapshotFailed);
-        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), error(Key::Jump));
         s.update(Msg::Snapshot(vec![]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left), "no agents left");
+        assert_eq!(
+            s.update(Msg::KeyDown(Key::Jump)),
+            error(Key::Jump),
+            "no agents left"
+        );
     }
 }
 
@@ -177,34 +181,34 @@ mod jump {
             blocked("b"),
             focused(agent("x", Status::Idle, 1)),
         ]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
     fn focuses_the_entry_after_the_focused_one() {
         let mut s = with(vec![blocked("a"), focused(blocked("b")), blocked("c")]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("c"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("c"));
     }
 
     #[test]
     fn wraps_from_the_tail_to_the_head() {
         let mut s = with(vec![blocked("a"), blocked("b"), focused(blocked("c"))]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
     fn with_a_single_focused_entry_focuses_it_again() {
         let mut s = with(vec![focused(blocked("a"))]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
     fn does_not_reorder_the_queue() {
         let mut s = with(vec![focused(blocked("a")), blocked("b")]);
-        s.update(Msg::KeyDown(Left));
+        s.update(Msg::KeyDown(Key::Jump));
         s.update(Msg::RequestDone { ok: true });
         s.update(Msg::Snapshot(vec![blocked("a"), blocked("b")]));
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
@@ -213,18 +217,18 @@ mod jump {
             agent("a", Status::Idle, 1),
             agent("b", Status::Working, 1),
         ]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
     fn a_successful_request_flashes_white_and_refreshes() {
         let mut s = with(vec![blocked("a")]);
-        s.update(Msg::KeyDown(Left));
+        s.update(Msg::KeyDown(Key::Jump));
         assert_eq!(
             s.update(Msg::RequestDone { ok: true }),
             vec![
                 Cmd::Flash {
-                    pos: Left,
+                    key: Key::Jump,
                     rgb: WHITE
                 },
                 Cmd::Poll
@@ -235,12 +239,12 @@ mod jump {
     #[test]
     fn a_failed_request_flashes_red_and_refreshes() {
         let mut s = with(vec![blocked("a")]);
-        s.update(Msg::KeyDown(Left));
+        s.update(Msg::KeyDown(Key::Jump));
         assert_eq!(
             s.update(Msg::RequestDone { ok: false }),
             vec![
                 Cmd::Flash {
-                    pos: Left,
+                    key: Key::Jump,
                     rgb: RED
                 },
                 Cmd::Poll
@@ -274,7 +278,7 @@ mod approve {
         let mut s = with(vec![focused(blocked("a"))]);
         assert_eq!(
             approve(&mut s, vec![agent("a", Status::Working, 2)]),
-            error(Middle)
+            error(Key::Approve)
         );
     }
 
@@ -286,7 +290,7 @@ mod approve {
                 &mut s,
                 vec![blocked("a"), focused(agent("x", Status::Idle, 1))]
             ),
-            error(Middle)
+            error(Key::Approve)
         );
     }
 
@@ -295,7 +299,7 @@ mod approve {
         let mut s = with(vec![]);
         let mut other = focused(blocked("a"));
         other.agent = Some("pi".into());
-        assert_eq!(approve(&mut s, vec![other]), error(Middle));
+        assert_eq!(approve(&mut s, vec![other]), error(Key::Approve));
     }
 
     #[test]
@@ -303,7 +307,7 @@ mod approve {
         let mut s = with(vec![]);
         let mut unnamed = focused(blocked("a"));
         unnamed.agent = None;
-        assert_eq!(approve(&mut s, vec![unnamed]), error(Middle));
+        assert_eq!(approve(&mut s, vec![unnamed]), error(Key::Approve));
     }
 
     #[test]
@@ -314,7 +318,10 @@ mod approve {
             send_enter("a")
         );
         s.update(Msg::RequestDone { ok: true });
-        assert_eq!(approve(&mut s, vec![focused(blocked("a"))]), error(Middle));
+        assert_eq!(
+            approve(&mut s, vec![focused(blocked("a"))]),
+            error(Key::Approve)
+        );
     }
 
     #[test]
@@ -341,8 +348,8 @@ mod approve {
     #[test]
     fn a_failed_refresh_flashes_an_error() {
         let mut s = with(vec![focused(blocked("a"))]);
-        assert_eq!(s.update(Msg::KeyDown(Middle)), vec![Cmd::Poll]);
-        assert_eq!(s.update(Msg::SnapshotFailed), error(Middle));
+        assert_eq!(s.update(Msg::KeyDown(Key::Approve)), vec![Cmd::Poll]);
+        assert_eq!(s.update(Msg::SnapshotFailed), error(Key::Approve));
     }
 
     #[test]
@@ -353,7 +360,7 @@ mod approve {
             s.update(Msg::RequestDone { ok: true }),
             vec![
                 Cmd::Flash {
-                    pos: Middle,
+                    key: Key::Approve,
                     rgb: WHITE
                 },
                 Cmd::Poll
@@ -401,7 +408,7 @@ mod select {
                 &mut s,
                 vec![blocked("a"), focused(agent("x", Status::Idle, 1))]
             ),
-            error(Right)
+            error(Key::Select)
         );
     }
 
@@ -410,7 +417,7 @@ mod select {
         let mut s = with(vec![]);
         let mut other = focused(blocked("a"));
         other.agent = Some("pi".into());
-        assert_eq!(select(&mut s, vec![other]), error(Right));
+        assert_eq!(select(&mut s, vec![other]), error(Key::Select));
     }
 
     #[test]
@@ -437,14 +444,17 @@ mod select {
         let mut s = with(vec![]);
         approve(&mut s, vec![focused(blocked("a"))]);
         s.update(Msg::RequestDone { ok: true });
-        assert_eq!(select(&mut s, vec![focused(blocked("a"))]), error(Right));
+        assert_eq!(
+            select(&mut s, vec![focused(blocked("a"))]),
+            error(Key::Select)
+        );
     }
 
     #[test]
     fn a_failed_refresh_flashes_an_error() {
         let mut s = with(vec![focused(blocked("a"))]);
-        assert_eq!(s.update(Msg::KeyDown(Right)), vec![Cmd::Poll]);
-        assert_eq!(s.update(Msg::SnapshotFailed), error(Right));
+        assert_eq!(s.update(Msg::KeyDown(Key::Select)), vec![Cmd::Poll]);
+        assert_eq!(s.update(Msg::SnapshotFailed), error(Key::Select));
     }
 
     #[test]
@@ -455,7 +465,7 @@ mod select {
             s.update(Msg::RequestDone { ok: true }),
             vec![
                 Cmd::Flash {
-                    pos: Right,
+                    key: Key::Select,
                     rgb: WHITE
                 },
                 Cmd::Poll
@@ -576,7 +586,7 @@ mod select_by_screen {
             s.update(Msg::RequestDone { ok: true }),
             vec![
                 Cmd::Flash {
-                    pos: Right,
+                    key: Key::Select,
                     rgb: WHITE
                 },
                 Cmd::Poll
@@ -607,19 +617,19 @@ mod jump_to_done {
     #[test]
     fn with_nothing_waiting_focuses_the_first_done_agent() {
         let mut s = with(vec![agent("x", Status::Idle, 1), done("d1"), done("d2")]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("d1"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("d1"));
     }
 
     #[test]
     fn cycles_from_the_focused_done_agent() {
         let mut s = with(vec![done("d1"), focused(done("d2")), done("d3")]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("d3"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("d3"));
     }
 
     #[test]
     fn waiting_agents_come_first() {
         let mut s = with(vec![done("d1"), blocked("a")]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
@@ -641,7 +651,7 @@ mod jump_to_agents {
             focused(agent("b", Status::Working, 1)),
             agent("c", Status::Unknown, 1),
         ]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("c"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("c"));
     }
 
     #[test]
@@ -650,13 +660,13 @@ mod jump_to_agents {
             agent("a", Status::Idle, 1),
             focused(agent("b", Status::Idle, 1)),
         ]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
     fn with_no_agents_flashes_an_error() {
         let mut s = with(vec![]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), error(Key::Jump));
     }
 
     #[test]
@@ -665,7 +675,7 @@ mod jump_to_agents {
             agent("a", Status::Idle, 1),
             agent("d", Status::Done, 1),
         ]);
-        assert_eq!(s.update(Msg::KeyDown(Left)), focus("d"));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("d"));
     }
 }
 
@@ -675,8 +685,8 @@ mod disconnected {
     #[test]
     fn every_key_flashes_an_error() {
         let mut s = State::new(keys());
-        for pos in [Left, Middle, Right] {
-            assert_eq!(s.update(Msg::KeyDown(pos)), error(pos));
+        for key in [Key::Jump, Key::Approve, Key::Select] {
+            assert_eq!(s.update(Msg::KeyDown(key)), error(key));
         }
     }
 
@@ -684,7 +694,7 @@ mod disconnected {
     fn incompatible_herdr_rejects_keys_too() {
         let mut s = with(vec![focused(blocked("a"))]);
         s.update(Msg::Incompatible);
-        assert_eq!(s.update(Msg::KeyDown(Left)), error(Left));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), error(Key::Jump));
     }
 }
 
