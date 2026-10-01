@@ -7,6 +7,7 @@
 //! flashing.
 
 #![no_std]
+#![warn(clippy::undocumented_unsafe_blocks)]
 #![no_main]
 
 use cortex_m_rt::entry;
@@ -52,6 +53,8 @@ fn main() -> ! {
     let now = || timer.get_counter().ticks() / 1000;
 
     static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
+    // SAFETY: `main` runs once and never returns, so this is the only
+    // access to USB_BUS, and the reference it hands out lives for good.
     let usb_bus = unsafe {
         USB_BUS = Some(UsbBusAllocator::new(hal::usb::UsbBus::new(
             pac.USBCTRL_REGS,
@@ -147,8 +150,12 @@ fn unique_serial_number() -> &'static str {
     const PREFIX: &[u8] = b"TRITON-";
     static mut TEXT: [u8; PREFIX.len() + 16] = [0; PREFIX.len() + 16];
     let mut id = [0u8; 8];
+    // SAFETY: runs with interrupts off, before anything else uses flash or
+    // executes from it in place.
     cortex_m::interrupt::free(|_| unsafe { rp2040_flash::flash::flash_unique_id(&mut id, true) });
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    // SAFETY: called once, from `main`, so nothing else holds TEXT; the
+    // text is ASCII, so it is valid UTF-8.
     unsafe {
         #[allow(static_mut_refs)]
         let text = &mut TEXT;

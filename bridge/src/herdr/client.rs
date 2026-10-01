@@ -135,6 +135,7 @@ fn connect(path: &Path, deadline: Instant) -> io::Result<File> {
         {
             Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
                 let wait = remaining(deadline)?.as_millis().clamp(1, u32::MAX as u128) as u32;
+                // SAFETY: the name is a NUL-terminated UTF-16 string that outlives the call.
                 if unsafe { WaitNamedPipeW(wide.as_ptr(), wait) } == 0 {
                     return Err(io::Error::last_os_error());
                 }
@@ -160,6 +161,7 @@ fn present(path: &Path) -> bool {
     use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
 
     let (_, wide) = pipe_name(path);
+    // SAFETY: the name is a NUL-terminated UTF-16 string that outlives the call.
     let free = unsafe { WaitNamedPipeW(wide.as_ptr(), 1) } != 0;
     free || io::Error::last_os_error().raw_os_error() == Some(ERROR_SEM_TIMEOUT as i32)
 }
@@ -174,6 +176,8 @@ impl Readable for File {
 
         loop {
             let mut available = 0u32;
+            // SAFETY: the handle is this open pipe; null buffers ask for the
+            // byte count only, written to a live local.
             let peeked = unsafe {
                 PeekNamedPipe(
                     self.as_raw_handle() as _,

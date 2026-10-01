@@ -15,6 +15,8 @@
 //! logs to standard error. `listen` and `stop` need Windows; elsewhere,
 //! `hook` runs the listener in its own process.
 
+#![warn(clippy::undocumented_unsafe_blocks)]
+
 use std::fs::OpenOptions;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};

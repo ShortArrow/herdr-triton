@@ -10,6 +10,7 @@
 //! no BOOT button.
 
 #![no_std]
+#![warn(clippy::undocumented_unsafe_blocks)]
 #![no_main]
 
 use core::fmt::Write as _;
@@ -69,6 +70,8 @@ fn main() -> ! {
     let timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
+    // SAFETY: `main` runs once and never returns, so this is the only
+    // access to USB_BUS, and the reference it hands out lives for good.
     let usb_bus = unsafe {
         USB_BUS = Some(UsbBusAllocator::new(hal::usb::UsbBus::new(
             pac.USBCTRL_REGS,

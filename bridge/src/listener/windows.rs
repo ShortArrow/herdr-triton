@@ -32,12 +32,16 @@ pub struct Claim {
 impl Claim {
     /// Becomes the listener, or `None` when another one already is.
     pub fn take(names: &Names) -> io::Result<Option<Claim>> {
+        // SAFETY: null attributes are allowed, and the name is a NUL-terminated
+        // UTF-16 string that outlives the call.
         let mutex =
             owned(unsafe { CreateMutexW(std::ptr::null(), 0, wide(&names.mutex).as_ptr()) })?;
+        // SAFETY: reads this thread's last error, set by CreateMutexW above.
         if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
             return Ok(None);
         }
         let event = |name: &str| {
+            // SAFETY: as for CreateMutexW.
             owned(unsafe { CreateEventW(std::ptr::null(), 0, 0, wide(name).as_ptr()) })
         };
         Ok(Some(Claim {
@@ -55,6 +59,7 @@ impl Claim {
             self.wake.as_raw_handle() as _,
         ];
         let ms = timeout.as_millis().min(u32::MAX as u128 - 1) as u32;
+        // SAFETY: both handles are owned by `self` and stay open during the wait.
         match unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, ms) } {
             r if r == WAIT_OBJECT_0 => Ok(Some(Signal::Stop)),
             r if r == WAIT_OBJECT_0 + 1 => Ok(Some(Signal::Wake)),
@@ -66,6 +71,7 @@ impl Claim {
 
 /// Whether a listener holds the mutex.
 pub fn running(names: &Names) -> bool {
+    // SAFETY: the name is a NUL-terminated UTF-16 string that outlives the call.
     owned(unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(&names.mutex).as_ptr()) })
         .is_ok()
 }
@@ -76,8 +82,10 @@ pub fn send(names: &Names, signal: Signal) -> io::Result<()> {
         Signal::Wake => &names.wake,
         Signal::Stop => &names.stop,
     };
+    // SAFETY: the name is a NUL-terminated UTF-16 string that outlives the call.
     let event = owned(unsafe { OpenEventW(EVENT_MODIFY_STATE, 0, wide(name).as_ptr()) })?;
     use std::os::windows::io::AsRawHandle;
+    // SAFETY: `event` is an open event handle with EVENT_MODIFY_STATE.
     if unsafe { SetEvent(event.as_raw_handle() as _) } == 0 {
         return Err(io::Error::last_os_error());
     }
@@ -90,6 +98,8 @@ pub fn send(names: &Names, signal: Signal) -> io::Result<()> {
 /// holding herdr's pipe keeps herdr waiting for the hook to end.
 pub fn spawn_detached(command: &mut Command) -> io::Result<Child> {
     for std in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+        // SAFETY: only changes the inherit flag of this process's own standard
+        // handle; a missing handle makes the call fail harmlessly.
         unsafe { SetHandleInformation(GetStdHandle(std), HANDLE_FLAG_INHERIT, 0) };
     }
     command
@@ -116,6 +126,8 @@ fn owned(handle: HANDLE) -> io::Result<OwnedHandle> {
     if handle.is_null() {
         Err(io::Error::last_os_error())
     } else {
+        // SAFETY: a non-null handle a Win32 create or open call just returned,
+        // owned by nothing else.
         Ok(unsafe { OwnedHandle::from_raw_handle(handle as _) })
     }
 }
