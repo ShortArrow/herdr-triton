@@ -87,7 +87,10 @@ impl ErrorCode {
 /// A reply to a query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reply<'a> {
-    Identity { serial: &'a str, version: &'a str },
+    Identity {
+        serial: &'a str,
+        version: &'a str,
+    },
     Protocol(u16),
     /// `None` is `0,"No error"`.
     Error(Option<ErrorCode>),
@@ -127,9 +130,15 @@ pub fn parse_command(line: &str) -> Result<Command, ErrorCode> {
     if query {
         return match (first, second) {
             (f, None) if f.eq_ignore_ascii_case("*IDN") => query_without_params(Command::Identify),
-            (f, Some(s)) if is(f, "SYSTem") && is(s, "PROTocol") => query_without_params(Command::Protocol),
-            (f, Some(s)) if is(f, "SYSTem") && is(s, "ERRor") => query_without_params(Command::NextError),
-            (f, Some(s)) if is(f, "KEY") && is(s, "EVENt") => query_without_params(Command::NextKey),
+            (f, Some(s)) if is(f, "SYSTem") && is(s, "PROTocol") => {
+                query_without_params(Command::Protocol)
+            }
+            (f, Some(s)) if is(f, "SYSTem") && is(s, "ERRor") => {
+                query_without_params(Command::NextError)
+            }
+            (f, Some(s)) if is(f, "KEY") && is(s, "EVENt") => {
+                query_without_params(Command::NextKey)
+            }
             _ => Err(ErrorCode::UndefinedHeader),
         };
     }
@@ -157,7 +166,10 @@ pub fn parse_command(line: &str) -> Result<Command, ErrorCode> {
 /// Whether `word` is `mnemonic` in its long form or its short form (the
 /// leading upper-case letters), ignoring case.
 fn is(word: &str, mnemonic: &str) -> bool {
-    let short = mnemonic.len() - mnemonic.trim_start_matches(|c: char| !c.is_ascii_lowercase()).len();
+    let short = mnemonic.len()
+        - mnemonic
+            .trim_start_matches(|c: char| !c.is_ascii_lowercase())
+            .len();
     word.eq_ignore_ascii_case(mnemonic) || word.eq_ignore_ascii_case(&mnemonic[..short])
 }
 
@@ -193,7 +205,10 @@ fn split_params<'a>(params: &'a str, out: &mut [&'a str; 6]) -> Result<usize, Er
     Ok(count)
 }
 
-fn expect_params<'a, const N: usize>(values: &[&'a str; 6], count: usize) -> Result<[&'a str; N], ErrorCode> {
+fn expect_params<'a, const N: usize>(
+    values: &[&'a str; 6],
+    count: usize,
+) -> Result<[&'a str; N], ErrorCode> {
     if count != N {
         return Err(ErrorCode::CommandError);
     }
@@ -201,14 +216,24 @@ fn expect_params<'a, const N: usize>(values: &[&'a str; 6], count: usize) -> Res
 }
 
 fn led(rgb: &str, mode: &str) -> Result<Led, ErrorCode> {
-    Ok(Led { rgb: parse_rgb(rgb)?, mode: parse_mode(mode)? })
+    Ok(Led {
+        rgb: parse_rgb(rgb)?,
+        mode: parse_mode(mode)?,
+    })
 }
 
 fn parse_rgb(text: &str) -> Result<Rgb, ErrorCode> {
-    let hex = text.strip_prefix('#').filter(|h| h.len() == 6 && h.bytes().all(|b| b.is_ascii_hexdigit()));
+    let hex = text
+        .strip_prefix('#')
+        .filter(|h| h.len() == 6 && h.bytes().all(|b| b.is_ascii_hexdigit()));
     let hex = hex.ok_or(ErrorCode::DataOutOfRange)?;
-    let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).map_err(|_| ErrorCode::DataOutOfRange);
-    Ok(Rgb { r: byte(0)?, g: byte(2)?, b: byte(4)? })
+    let byte =
+        |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).map_err(|_| ErrorCode::DataOutOfRange);
+    Ok(Rgb {
+        r: byte(0)?,
+        g: byte(2)?,
+        b: byte(4)?,
+    })
 }
 
 const MODES: [(Mode, &str); 5] = [
@@ -261,11 +286,18 @@ const POSITIONS: [(Position, &str); 3] = [
 const EDGES: [(Edge, &str); 2] = [(Edge::Down, "DOWN"), (Edge::Up, "UP")];
 
 fn name_of<T: PartialEq + Copy>(table: &[(T, &'static str)], value: T) -> &'static str {
-    table.iter().find(|(v, _)| *v == value).map(|(_, n)| *n).unwrap_or("")
+    table
+        .iter()
+        .find(|(v, _)| *v == value)
+        .map(|(_, n)| *n)
+        .unwrap_or("")
 }
 
 fn value_of<T: Copy>(table: &[(T, &'static str)], name: &str) -> Option<T> {
-    table.iter().find(|(_, n)| n.eq_ignore_ascii_case(name)).map(|(v, _)| *v)
+    table
+        .iter()
+        .find(|(_, n)| n.eq_ignore_ascii_case(name))
+        .map(|(v, _)| *v)
 }
 
 /// Writes `cmd` in its short form, without a line terminator.
@@ -283,7 +315,13 @@ pub fn write_command(cmd: &Command, out: &mut impl fmt::Write) -> fmt::Result {
             }
             Ok(())
         }
-        Command::Set(pos, l) => write!(out, "LED{} {},{}", led_index(*pos), Hex(l.rgb), mode_name(l.mode)),
+        Command::Set(pos, l) => write!(
+            out,
+            "LED{} {},{}",
+            led_index(*pos),
+            Hex(l.rgb),
+            mode_name(l.mode)
+        ),
         Command::Flash(pos, rgb) => write!(out, "LED{}:FLAS {}", led_index(*pos), Hex(*rgb)),
     }
 }
@@ -291,13 +329,20 @@ pub fn write_command(cmd: &Command, out: &mut impl fmt::Write) -> fmt::Result {
 /// Writes `reply` without a line terminator.
 pub fn write_reply(reply: &Reply, out: &mut impl fmt::Write) -> fmt::Result {
     match reply {
-        Reply::Identity { serial, version } => write!(out, "ShortArrow,herdr-triton,{serial},{version}"),
+        Reply::Identity { serial, version } => {
+            write!(out, "ShortArrow,herdr-triton,{serial},{version}")
+        }
         Reply::Protocol(v) => write!(out, "{v}"),
         Reply::Error(None) => out.write_str("0,\"No error\""),
         Reply::Error(Some(e)) => write!(out, "{},\"{}\"", e.code(), e.message()),
         Reply::Key(None) => out.write_str("NONE"),
         Reply::Key(Some((pos, edge))) => {
-            write!(out, "{},{}", name_of(&POSITIONS, *pos), name_of(&EDGES, *edge))
+            write!(
+                out,
+                "{},{}",
+                name_of(&POSITIONS, *pos),
+                name_of(&EDGES, *edge)
+            )
         }
     }
 }
@@ -320,7 +365,9 @@ pub fn parse_reply<'a>(query: &Command, line: &'a str) -> Result<Reply<'a>, Repl
             let (code, _) = line.split_once(',').ok_or(ReplyError)?;
             match code.parse::<i16>().map_err(|_| ReplyError)? {
                 0 => Ok(Reply::Error(None)),
-                n => ErrorCode::from_code(n).map(|e| Reply::Error(Some(e))).ok_or(ReplyError),
+                n => ErrorCode::from_code(n)
+                    .map(|e| Reply::Error(Some(e)))
+                    .ok_or(ReplyError),
             }
         }
         Command::NextKey if line.eq_ignore_ascii_case("NONE") => Ok(Reply::Key(None)),
@@ -344,7 +391,11 @@ pub struct LineBuffer {
 
 impl LineBuffer {
     pub const fn new() -> Self {
-        Self { buf: [0; MAX_LINE + 1], len: 0, overflowed: false }
+        Self {
+            buf: [0; MAX_LINE + 1],
+            len: 0,
+            overflowed: false,
+        }
     }
 
     /// Feeds one byte. At `\n` returns the line, without a trailing `\r`,

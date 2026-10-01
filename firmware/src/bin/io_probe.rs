@@ -131,7 +131,12 @@ fn main() -> ! {
                 held[i] = now_held;
                 changed = true;
                 let mut line: heapless_line::Line = Default::default();
-                let _ = writeln!(line, "GP{} {}\r", HELD[i].0, if now_held { "down" } else { "up" });
+                let _ = writeln!(
+                    line,
+                    "GP{} {}\r",
+                    HELD[i].0,
+                    if now_held { "down" } else { "up" }
+                );
                 let _ = serial.write(line.as_bytes());
             }
         }
@@ -143,7 +148,11 @@ fn main() -> ! {
         if now >= next_beat {
             next_beat = now + 500.millis();
             beat_on = !beat_on;
-            let _ = if beat_on { heartbeat.set_high() } else { heartbeat.set_low() };
+            let _ = if beat_on {
+                heartbeat.set_high()
+            } else {
+                heartbeat.set_low()
+            };
         }
     }
 }

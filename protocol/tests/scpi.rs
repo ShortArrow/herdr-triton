@@ -1,9 +1,21 @@
 use protocol::scpi::*;
 use protocol::{Edge, Led, Mode, Position, Rgb};
 
-const AMBER: Rgb = Rgb { r: 0xFF, g: 0x8C, b: 0x00 };
-const GREEN: Rgb = Rgb { r: 0x00, g: 0xFF, b: 0x00 };
-const BLUE: Rgb = Rgb { r: 0x00, g: 0x00, b: 0xFF };
+const AMBER: Rgb = Rgb {
+    r: 0xFF,
+    g: 0x8C,
+    b: 0x00,
+};
+const GREEN: Rgb = Rgb {
+    r: 0x00,
+    g: 0xFF,
+    b: 0x00,
+};
+const BLUE: Rgb = Rgb {
+    r: 0x00,
+    g: 0x00,
+    b: 0xFF,
+};
 
 fn led(rgb: Rgb, mode: Mode) -> Led {
     Led { rgb, mode }
@@ -21,10 +33,20 @@ fn every_command() -> Vec<Command> {
         Command::Protocol,
         Command::NextError,
         Command::NextKey,
-        Command::SetAll([led(AMBER, Mode::Breathe), led(GREEN, Mode::Solid), led(BLUE, Mode::Blink)]),
+        Command::SetAll([
+            led(AMBER, Mode::Breathe),
+            led(GREEN, Mode::Solid),
+            led(BLUE, Mode::Blink),
+        ]),
     ];
     for pos in [Position::Left, Position::Middle, Position::Right] {
-        for mode in [Mode::Off, Mode::Solid, Mode::Breathe, Mode::Blink, Mode::Wave] {
+        for mode in [
+            Mode::Off,
+            Mode::Solid,
+            Mode::Breathe,
+            Mode::Blink,
+            Mode::Wave,
+        ] {
             all.push(Command::Set(pos, led(AMBER, mode)));
         }
         all.push(Command::Flash(pos, GREEN));
@@ -51,10 +73,17 @@ mod commands {
             (Command::NextError, "SYST:ERR?"),
             (Command::NextKey, "KEY:EVEN?"),
             (
-                Command::SetAll([led(AMBER, Mode::Breathe), led(GREEN, Mode::Solid), led(BLUE, Mode::Blink)]),
+                Command::SetAll([
+                    led(AMBER, Mode::Breathe),
+                    led(GREEN, Mode::Solid),
+                    led(BLUE, Mode::Blink),
+                ]),
                 "LED:ALL #FF8C00,BREATHE,#00FF00,SOLID,#0000FF,BLINK",
             ),
-            (Command::Set(Position::Middle, led(GREEN, Mode::Off)), "LED2 #00FF00,OFF"),
+            (
+                Command::Set(Position::Middle, led(GREEN, Mode::Off)),
+                "LED2 #00FF00,OFF",
+            ),
             (Command::Flash(Position::Right, BLUE), "LED3:FLAS #0000FF"),
         ];
         for (cmd, expected) in cases {
@@ -64,22 +93,44 @@ mod commands {
 
     #[test]
     fn headers_accept_long_and_short_forms_in_any_case() {
-        for line in ["SYST:PROT?", "SYSTEM:PROTOCOL?", "system:protocol?", "Syst:Protocol?", ":SYST:PROT?"] {
+        for line in [
+            "SYST:PROT?",
+            "SYSTEM:PROTOCOL?",
+            "system:protocol?",
+            "Syst:Protocol?",
+            ":SYST:PROT?",
+        ] {
             assert_eq!(parse_command(line), Ok(Command::Protocol), "{line:?}");
         }
         for line in ["KEY:EVEN?", "key:event?"] {
             assert_eq!(parse_command(line), Ok(Command::NextKey), "{line:?}");
         }
         for line in ["LED1:FLAS #00FF00", "led1:flash #00ff00"] {
-            assert_eq!(parse_command(line), Ok(Command::Flash(Position::Left, GREEN)), "{line:?}");
+            assert_eq!(
+                parse_command(line),
+                Ok(Command::Flash(Position::Left, GREEN)),
+                "{line:?}"
+            );
         }
     }
 
     #[test]
     fn modes_accept_long_and_short_forms() {
-        for (word, mode) in [("SOL", Mode::Solid), ("solid", Mode::Solid), ("BRE", Mode::Breathe), ("blin", Mode::Blink), ("off", Mode::Off), ("WAV", Mode::Wave), ("wave", Mode::Wave)] {
+        for (word, mode) in [
+            ("SOL", Mode::Solid),
+            ("solid", Mode::Solid),
+            ("BRE", Mode::Breathe),
+            ("blin", Mode::Blink),
+            ("off", Mode::Off),
+            ("WAV", Mode::Wave),
+            ("wave", Mode::Wave),
+        ] {
             let line = format!("LED1 #FF8C00,{word}");
-            assert_eq!(parse_command(&line), Ok(Command::Set(Position::Left, led(AMBER, mode))), "{line:?}");
+            assert_eq!(
+                parse_command(&line),
+                Ok(Command::Set(Position::Left, led(AMBER, mode))),
+                "{line:?}"
+            );
         }
     }
 
@@ -93,22 +144,61 @@ mod commands {
 
     #[test]
     fn an_unknown_header_is_undefined() {
-        for line in ["FOO?", "SYST:FOO?", "KEY:EVEN", "SYST:PROT", "*IDN", "LED1?", "LED:ALL?", "LED1:FOO #000000", "SYSTE:PROT?", "SYSTEMS:PROT?"] {
-            assert_eq!(parse_command(line), Err(ErrorCode::UndefinedHeader), "{line:?}");
+        for line in [
+            "FOO?",
+            "SYST:FOO?",
+            "KEY:EVEN",
+            "SYST:PROT",
+            "*IDN",
+            "LED1?",
+            "LED:ALL?",
+            "LED1:FOO #000000",
+            "SYSTE:PROT?",
+            "SYSTEMS:PROT?",
+        ] {
+            assert_eq!(
+                parse_command(line),
+                Err(ErrorCode::UndefinedHeader),
+                "{line:?}"
+            );
         }
     }
 
     #[test]
     fn an_led_number_colour_or_mode_out_of_range_is_data_out_of_range() {
-        for line in ["LED0 #000000,OFF", "LED4 #000000,OFF", "LED1 #00000,OFF", "LED1 000000,OFF", "LED1 #GG0000,OFF", "LED1 #000000,DIM", "LED4:FLAS #000000"] {
-            assert_eq!(parse_command(line), Err(ErrorCode::DataOutOfRange), "{line:?}");
+        for line in [
+            "LED0 #000000,OFF",
+            "LED4 #000000,OFF",
+            "LED1 #00000,OFF",
+            "LED1 000000,OFF",
+            "LED1 #GG0000,OFF",
+            "LED1 #000000,DIM",
+            "LED4:FLAS #000000",
+        ] {
+            assert_eq!(
+                parse_command(line),
+                Err(ErrorCode::DataOutOfRange),
+                "{line:?}"
+            );
         }
     }
 
     #[test]
     fn a_wrong_parameter_count_is_a_command_error() {
-        for line in ["LED1 #000000", "LED1 #000000,OFF,OFF", "LED:ALL #000000,OFF", "LED1:FLAS", "*IDN? 1", "KEY:EVEN? now", ""] {
-            assert_eq!(parse_command(line), Err(ErrorCode::CommandError), "{line:?}");
+        for line in [
+            "LED1 #000000",
+            "LED1 #000000,OFF,OFF",
+            "LED:ALL #000000,OFF",
+            "LED1:FLAS",
+            "*IDN? 1",
+            "KEY:EVEN? now",
+            "",
+        ] {
+            assert_eq!(
+                parse_command(line),
+                Err(ErrorCode::CommandError),
+                "{line:?}"
+            );
         }
     }
 
@@ -131,7 +221,10 @@ mod replies {
 
     #[test]
     fn identity_names_maker_model_serial_and_version() {
-        let reply = Reply::Identity { serial: "TRITON-0123456789ABCDEF", version: "0.1.0" };
+        let reply = Reply::Identity {
+            serial: "TRITON-0123456789ABCDEF",
+            version: "0.1.0",
+        };
         assert_eq!(
             text(|s| write_reply(&reply, s)),
             "ShortArrow,herdr-triton,TRITON-0123456789ABCDEF,0.1.0"
@@ -141,7 +234,10 @@ mod replies {
 
     #[test]
     fn protocol_is_a_bare_number() {
-        assert_eq!(text(|s| write_reply(&Reply::Protocol(PROTOCOL_VERSION), s)), "3");
+        assert_eq!(
+            text(|s| write_reply(&Reply::Protocol(PROTOCOL_VERSION), s)),
+            "3"
+        );
         round_trip(&Command::Protocol, Reply::Protocol(PROTOCOL_VERSION));
     }
 
@@ -150,8 +246,14 @@ mod replies {
         let cases = [
             (None, "0,\"No error\""),
             (Some(ErrorCode::CommandError), "-100,\"Command error\""),
-            (Some(ErrorCode::UndefinedHeader), "-113,\"Undefined header\""),
-            (Some(ErrorCode::DataOutOfRange), "-222,\"Data out of range\""),
+            (
+                Some(ErrorCode::UndefinedHeader),
+                "-113,\"Undefined header\"",
+            ),
+            (
+                Some(ErrorCode::DataOutOfRange),
+                "-222,\"Data out of range\"",
+            ),
             (Some(ErrorCode::QueueOverflow), "-350,\"Queue overflow\""),
         ];
         for (code, expected) in cases {
@@ -177,14 +279,26 @@ mod replies {
 
     #[test]
     fn a_reply_that_does_not_fit_its_query_is_rejected() {
-        assert_eq!(parse_reply(&Command::NextKey, "SIDEWAYS,DOWN"), Err(ReplyError));
-        assert_eq!(parse_reply(&Command::Protocol, "two"), Err(ReplyError));
-        assert_eq!(parse_reply(&Command::Identify, "ShortArrow,herdr-triton"), Err(ReplyError));
         assert_eq!(
-            parse_reply(&Command::Identify, "Keysight Technologies,34461A,MY12345678,A.03.01"),
+            parse_reply(&Command::NextKey, "SIDEWAYS,DOWN"),
             Err(ReplyError)
         );
-        assert_eq!(parse_reply(&Command::SetAll([led(AMBER, Mode::Off); 3]), "1"), Err(ReplyError));
+        assert_eq!(parse_reply(&Command::Protocol, "two"), Err(ReplyError));
+        assert_eq!(
+            parse_reply(&Command::Identify, "ShortArrow,herdr-triton"),
+            Err(ReplyError)
+        );
+        assert_eq!(
+            parse_reply(
+                &Command::Identify,
+                "Keysight Technologies,34461A,MY12345678,A.03.01"
+            ),
+            Err(ReplyError)
+        );
+        assert_eq!(
+            parse_reply(&Command::SetAll([led(AMBER, Mode::Off); 3]), "1"),
+            Err(ReplyError)
+        );
     }
 }
 
@@ -201,7 +315,10 @@ mod lines {
 
     #[test]
     fn a_line_ends_at_newline_and_drops_a_carriage_return() {
-        assert_eq!(lines_of(b"*IDN?\r\nKEY:EVEN?\n"), vec![Ok("*IDN?".into()), Ok("KEY:EVEN?".into())]);
+        assert_eq!(
+            lines_of(b"*IDN?\r\nKEY:EVEN?\n"),
+            vec![Ok("*IDN?".into()), Ok("KEY:EVEN?".into())]
+        );
     }
 
     #[test]

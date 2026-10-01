@@ -4,7 +4,12 @@
 fn main() {
     let msvc = std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc");
     if msvc {
-        for dll in ["setupapi.dll", "cfgmgr32.dll", "advapi32.dll", "bcryptprimitives.dll"] {
+        for dll in [
+            "setupapi.dll",
+            "cfgmgr32.dll",
+            "advapi32.dll",
+            "bcryptprimitives.dll",
+        ] {
             println!("cargo:rustc-link-arg-bin=bridge=/DELAYLOAD:{dll}");
         }
         println!("cargo:rustc-link-arg-bin=bridge=delayimp.lib");

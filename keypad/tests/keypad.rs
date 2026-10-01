@@ -3,11 +3,19 @@ use protocol::scpi::{write_command, Command, ErrorCode, Reply, PROTOCOL_VERSION}
 use protocol::{Edge, Led, Mode, Position, Position::*, Rgb};
 
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
-const WHITE: Rgb = Rgb { r: 255, g: 255, b: 255 };
+const WHITE: Rgb = Rgb {
+    r: 255,
+    g: 255,
+    b: 255,
+};
 const DARK: Rgb = Rgb { r: 0, g: 0, b: 0 };
 /// Full brightness after the 64/255 cap.
 const RED_OUT: Rgb = Rgb { r: 64, g: 0, b: 0 };
-const WHITE_OUT: Rgb = Rgb { r: 64, g: 64, b: 64 };
+const WHITE_OUT: Rgb = Rgb {
+    r: 64,
+    g: 64,
+    b: 64,
+};
 const NO_HOST: Rgb = Rgb { r: 8, g: 8, b: 8 };
 const SERIAL: &str = "TRITON-0123456789ABCDEF";
 const VERSION: &str = "0.2.0";
@@ -91,7 +99,10 @@ mod host_presence {
     #[test]
     fn a_line_while_dtr_is_low_is_answered_but_does_not_end_no_host() {
         let mut k = keypad();
-        assert!(matches!(send(&mut k, Command::Identify, 0), Some(Reply::Identity { .. })));
+        assert!(matches!(
+            send(&mut k, Command::Identify, 0),
+            Some(Reply::Identity { .. })
+        ));
         assert_eq!(k.pixels(0), [NO_HOST; 3]);
     }
 
@@ -224,13 +235,19 @@ mod commands {
         let mut k = keypad();
         assert_eq!(
             send(&mut k, Command::Identify, 0),
-            Some(Reply::Identity { serial: SERIAL, version: VERSION })
+            Some(Reply::Identity {
+                serial: SERIAL,
+                version: VERSION
+            })
         );
     }
 
     #[test]
     fn protocol_answers_the_version() {
-        assert_eq!(send(&mut keypad(), Command::Protocol, 0), Some(Reply::Protocol(PROTOCOL_VERSION)));
+        assert_eq!(
+            send(&mut keypad(), Command::Protocol, 0),
+            Some(Reply::Protocol(PROTOCOL_VERSION))
+        );
     }
 
     #[test]
@@ -248,7 +265,11 @@ mod commands {
         assert_eq!(k.line(Err(ErrorCode::CommandError), 1), None);
         assert_eq!(
             drain_errors(&mut k, 1),
-            vec![ErrorCode::UndefinedHeader, ErrorCode::DataOutOfRange, ErrorCode::CommandError]
+            vec![
+                ErrorCode::UndefinedHeader,
+                ErrorCode::DataOutOfRange,
+                ErrorCode::CommandError
+            ]
         );
     }
 
@@ -271,7 +292,17 @@ mod commands {
     #[test]
     fn one_led_can_be_set_alone() {
         let mut k = hosted();
-        send(&mut k, Command::Set(Right, Led { rgb: WHITE, mode: Mode::Solid }), 1);
+        send(
+            &mut k,
+            Command::Set(
+                Right,
+                Led {
+                    rgb: WHITE,
+                    mode: Mode::Solid,
+                },
+            ),
+            1,
+        );
         assert_eq!(k.pixels(1), [RED_OUT, RED_OUT, WHITE_OUT]);
     }
 }
@@ -310,9 +341,15 @@ mod rendering {
         assert_eq!(red_at(&k, 1000), 64);
         send(&mut k, Command::NextKey, 2000);
         assert_eq!(red_at(&k, 2000), 6);
-        let rising: Vec<u8> = (0..=1000).step_by(100).map(|t| red_at(&k, 2000 + t)).collect();
+        let rising: Vec<u8> = (0..=1000)
+            .step_by(100)
+            .map(|t| red_at(&k, 2000 + t))
+            .collect();
         assert!(rising.windows(2).all(|w| w[0] <= w[1]), "{rising:?}");
-        let falling: Vec<u8> = (1000..=2000).step_by(100).map(|t| red_at(&k, 2000 + t)).collect();
+        let falling: Vec<u8> = (1000..=2000)
+            .step_by(100)
+            .map(|t| red_at(&k, 2000 + t))
+            .collect();
         assert!(falling.windows(2).all(|w| w[0] >= w[1]), "{falling:?}");
     }
 
@@ -346,14 +383,20 @@ mod rendering {
     fn wave_moves_60_degrees_and_brightens_by_half_a_second() {
         let mut k = showing([(WHITE, Mode::Wave); 3]);
         send(&mut k, Command::NextKey, 500);
-        assert_eq!(k.pixels(500), [rgb(35, 35, 0), rgb(0, 35, 35), rgb(35, 0, 35)]);
+        assert_eq!(
+            k.pixels(500),
+            [rgb(35, 35, 0), rgb(0, 35, 35), rgb(35, 0, 35)]
+        );
     }
 
     #[test]
     fn wave_moves_120_degrees_at_full_brightness_by_one_second() {
         let mut k = showing([(WHITE, Mode::Wave); 3]);
         send(&mut k, Command::NextKey, 1000);
-        assert_eq!(k.pixels(1000), [rgb(0, 64, 0), rgb(0, 0, 64), rgb(64, 0, 0)]);
+        assert_eq!(
+            k.pixels(1000),
+            [rgb(0, 64, 0), rgb(0, 0, 64), rgb(64, 0, 0)]
+        );
     }
 
     #[test]
@@ -364,6 +407,9 @@ mod rendering {
 
     #[test]
     fn led_order_swaps_red_and_green() {
-        assert_eq!(led_order(Rgb { r: 1, g: 2, b: 3 }), Rgb { r: 2, g: 1, b: 3 });
+        assert_eq!(
+            led_order(Rgb { r: 1, g: 2, b: 3 }),
+            Rgb { r: 2, g: 1, b: 3 }
+        );
     }
 }

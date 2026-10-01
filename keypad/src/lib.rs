@@ -39,7 +39,11 @@ struct Debounce {
 
 impl Debounce {
     const fn new() -> Self {
-        Self { stable: false, seen: false, since: 0 }
+        Self {
+            stable: false,
+            seen: false,
+            since: 0,
+        }
     }
 
     /// The new accepted level, if `pressed` has now held for [`DEBOUNCE`].
@@ -81,7 +85,10 @@ impl Keypad {
             version,
             dtr: false,
             last_line: None,
-            leds: [Led { rgb: DARK, mode: Mode::Off }; 3],
+            leds: [Led {
+                rgb: DARK,
+                mode: Mode::Off,
+            }; 3],
             flash: None,
             keys: [Debounce::new(); 3],
             events: Deque::new(),
@@ -148,7 +155,10 @@ impl Keypad {
 
     fn handle(&mut self, cmd: Command, now: Millis) -> Option<Reply<'static>> {
         match cmd {
-            Command::Identify => Some(Reply::Identity { serial: self.serial, version: self.version }),
+            Command::Identify => Some(Reply::Identity {
+                serial: self.serial,
+                version: self.version,
+            }),
             Command::Protocol => Some(Reply::Protocol(PROTOCOL_VERSION)),
             Command::NextError => Some(Reply::Error(self.errors.pop_front())),
             Command::NextKey => Some(Reply::Key(self.events.pop_front())),
@@ -179,7 +189,10 @@ impl Keypad {
     }
 
     fn hosted(&self, now: Millis) -> bool {
-        self.dtr && self.last_line.is_some_and(|t| now.saturating_sub(t) < HOST_TIMEOUT)
+        self.dtr
+            && self
+                .last_line
+                .is_some_and(|t| now.saturating_sub(t) < HOST_TIMEOUT)
     }
 }
 
@@ -225,18 +238,30 @@ fn wave_colour(index: usize, now: Millis) -> Rgb {
 fn breathe_level(now: Millis) -> u32 {
     let half = BREATHE_PERIOD / 2;
     let phase = now % BREATHE_PERIOD;
-    let rise = if phase < half { phase } else { BREATHE_PERIOD - phase };
+    let rise = if phase < half {
+        phase
+    } else {
+        BREATHE_PERIOD - phase
+    };
     BREATHE_FLOOR + ((1000 - BREATHE_FLOOR) as Millis * rise / half) as u32
 }
 
 /// `rgb` at `per_mille` brightness, capped at [`MAX_LEVEL`].
 fn scale(rgb: Rgb, per_mille: u32) -> Rgb {
     let c = |v: u8| (v as u32 * MAX_LEVEL * per_mille / (255 * 1000)) as u8;
-    Rgb { r: c(rgb.r), g: c(rgb.g), b: c(rgb.b) }
+    Rgb {
+        r: c(rgb.r),
+        g: c(rgb.g),
+        b: c(rgb.b),
+    }
 }
 
 /// `rgb` in the byte order the LEDs need when driven through `ws2812-pio`,
 /// which sends GRB to LEDs that take RGB.
 pub fn led_order(rgb: Rgb) -> Rgb {
-    Rgb { r: rgb.g, g: rgb.r, b: rgb.b }
+    Rgb {
+        r: rgb.g,
+        g: rgb.r,
+        b: rgb.b,
+    }
 }

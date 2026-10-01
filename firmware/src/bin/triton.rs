@@ -78,7 +78,12 @@ fn main() -> ! {
         .build();
 
     let sio = hal::Sio::new(pac.SIO);
-    let pins = hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
+    let pins = hal::gpio::Pins::new(
+        pac.IO_BANK0,
+        pac.PADS_BANK0,
+        sio.gpio_bank0,
+        &mut pac.RESETS,
+    );
     let mut keys = [
         pins.gpio14.into_pull_up_input().into_dyn_pin(),
         pins.gpio13.into_pull_up_input().into_dyn_pin(),
