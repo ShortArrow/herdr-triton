@@ -44,7 +44,7 @@ A resident `bridge listen` serves the keypad for the life of the herdr server th
 | quiet | none; every second it checks that herdr's endpoint exists, without connecting | every 250 ms | right LED breathing white, the others off |
 | active | `agent.list` every 250 ms and after each request | every 20 ms | as in "LEDs" |
 
-On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `bridge hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `bridge.log`.
+On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `bridge hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `bridge.log`. It starts `bridge find-port` with `CREATE_NO_WINDOW`, since a console program started from a process without a console otherwise opens a console window.
 
 The first herdr session whose hook starts a listener keeps the keypad until its server stops. `bridge run` runs the active loop without quiet mode or exit rules, for use without the plugin. With no listener, the device is in `NoHost` and shows dim white.
 
@@ -318,7 +318,7 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
 - Clearing `sent` when herdr never reports a state change after an approval
-- Linux and macOS equivalents of the listener's mutex, events and detached spawn
+- Linux and macOS equivalents of the listener's mutex, events and detached spawn. Until then `bridge hook` there serves the keypad in its own process, which herdr counts as a running hook, and exits when the keypad fails
 - Which client's view `focused` reflects when several herdr clients are attached
 - Several devices at once
 - A network transport: CDC-NCM with raw SCPI on TCP port 5025, reachable from VISA as `TCPIP::<address>::5025::SOCKET` and from telnet or nc. It waits for `drooling` to support `embassy-usb`, which has an NCM class; the SCPI commands and their parser stay as they are

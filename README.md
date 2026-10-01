@@ -48,14 +48,14 @@ cargo install --locked --path bridge --bin bridge --root .plugin
 herdr plugin link .
 ```
 
-`herdr plugin link` registers the plugin with the session the terminal reaches; set `HERDR_SESSION=<name>` first for a named session. It does not build anything, so run the same `cargo install` again after pulling.
+`herdr plugin link` registers the plugin with the session the terminal reaches; set `HERDR_SESSION=<name>` first for a named session. It does not build anything, so run the same `cargo install` again after pulling. On Windows, run `.plugin/bin/bridge stop` first: the running listener holds its executable.
 
-From then on herdr starts `bridge hook` whenever an agent's status changes. The hook that opens the keypad's port listens until nothing has waited for 5 s (ADR 0008).
+From then on herdr starts `bridge hook` at startup and whenever an agent's status changes. The first hook starts a resident listener; later ones wake it. The listener stays until herdr stops, asking herdr nothing while nothing waits (ADR 0012).
 
 ### 4. Check it
 
 - Any serial terminal at the keypad's port answers `*IDN?` with `ShortArrow,herdr-triton,<serial>,<version>`. The port's USB serial number starts with `TRITON-`
-- `bridge.log` in herdr's state directory for the plugin (`%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\` on Windows) shows each hook, the listener, and why it exited
+- `bridge.log` in herdr's state directory for the plugin (`%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\` on Windows) shows each listener start, the port it serves, and why it exited
 
 ## Without the plugin
 

@@ -57,14 +57,16 @@ herdr plugin link .
 `herdr plugin link` は、そのターミナルがつながるセッションにプラグインを登録する。
 名前付きのセッションに登録するなら、先に `HERDR_SESSION=<name>` を設定する。
 `herdr plugin link` はビルドをしないので、更新を取り込んだら同じ `cargo install` を実行し直す。
+Windows では、動いているリスナーが実行ファイルを使っているので、先に `.plugin/bin/bridge stop` を実行する。
 
-以後、エージェントのステータスが変わるたびに herdr が `bridge hook` を起動する。
-キーパッドのポートを開けたフックがリスナーになり、承認待ちが 5 秒続けて無くなるまで動く（ADR 0008）。
+以後、herdr は起動時と、エージェントのステータスが変わるたびに `bridge hook` を起動する。
+最初のフックが常駐するリスナーを起動し、以降のフックはそれを起こす。
+リスナーは herdr が止まるまで動き、待つものが無い間は herdr に何も問い合わせない（ADR 0012）。
 
 ### 4. 動作を確かめる
 
 - どのシリアルターミナルからでも、キーパッドのポートに `*IDN?` を送ると `ShortArrow,herdr-triton,<シリアル番号>,<バージョン>` が返る。ポートの USB シリアル番号は `TRITON-` で始まる
-- herdr がプラグインに用意する状態ディレクトリ（Windows では `%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\`）の `bridge.log` に、フックの起動、リスナー、終了の理由が記録される
+- herdr がプラグインに用意する状態ディレクトリ（Windows では `%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\`）の `bridge.log` に、リスナーの起動、受け持つポート、終了の理由が記録される
 
 ## プラグインを使わない場合
 

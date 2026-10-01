@@ -9,8 +9,8 @@ platforms = ["linux", "macos", "windows"]
 [[build]]
 command = ["cargo", "install", "--locked", "--path", "bridge", "--bin", "bridge", "--root", ".plugin"]
 
-# ADR 0008: every hook tries to become the listener; the one that opens the
-# keypad's port stays until nothing has waited for 5 s.
+# ADR 0012: a hook wakes the resident listener, or starts it detached and
+# exits at once.
 [[startup]]
 platforms = ["windows"]
 command = [".plugin/bin/bridge.exe", "hook"]
