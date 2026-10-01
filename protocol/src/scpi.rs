@@ -6,7 +6,7 @@ use core::fmt;
 use crate::{Edge, Led, Mode, Position, Rgb};
 
 /// The version `SYSTem:PROTocol?` answers.
-pub const PROTOCOL_VERSION: u16 = 2;
+pub const PROTOCOL_VERSION: u16 = 3;
 
 /// The longest line, terminator excluded.
 pub const MAX_LINE: usize = 64;
@@ -211,11 +211,12 @@ fn parse_rgb(text: &str) -> Result<Rgb, ErrorCode> {
     Ok(Rgb { r: byte(0)?, g: byte(2)?, b: byte(4)? })
 }
 
-const MODES: [(Mode, &str); 4] = [
+const MODES: [(Mode, &str); 5] = [
     (Mode::Off, "OFF"),
     (Mode::Solid, "SOLid"),
     (Mode::Breathe, "BREathe"),
     (Mode::Blink, "BLINk"),
+    (Mode::Wave, "WAVe"),
 ];
 
 fn parse_mode(text: &str) -> Result<Mode, ErrorCode> {
@@ -232,6 +233,7 @@ fn mode_name(mode: Mode) -> &'static str {
         Mode::Solid => "SOLID",
         Mode::Breathe => "BREATHE",
         Mode::Blink => "BLINK",
+        Mode::Wave => "WAVE",
     }
 }
 

@@ -24,7 +24,7 @@ fn every_command() -> Vec<Command> {
         Command::SetAll([led(AMBER, Mode::Breathe), led(GREEN, Mode::Solid), led(BLUE, Mode::Blink)]),
     ];
     for pos in [Position::Left, Position::Middle, Position::Right] {
-        for mode in [Mode::Off, Mode::Solid, Mode::Breathe, Mode::Blink] {
+        for mode in [Mode::Off, Mode::Solid, Mode::Breathe, Mode::Blink, Mode::Wave] {
             all.push(Command::Set(pos, led(AMBER, mode)));
         }
         all.push(Command::Flash(pos, GREEN));
@@ -77,7 +77,7 @@ mod commands {
 
     #[test]
     fn modes_accept_long_and_short_forms() {
-        for (word, mode) in [("SOL", Mode::Solid), ("solid", Mode::Solid), ("BRE", Mode::Breathe), ("blin", Mode::Blink), ("off", Mode::Off)] {
+        for (word, mode) in [("SOL", Mode::Solid), ("solid", Mode::Solid), ("BRE", Mode::Breathe), ("blin", Mode::Blink), ("off", Mode::Off), ("WAV", Mode::Wave), ("wave", Mode::Wave)] {
             let line = format!("LED1 #FF8C00,{word}");
             assert_eq!(parse_command(&line), Ok(Command::Set(Position::Left, led(AMBER, mode))), "{line:?}");
         }
@@ -141,7 +141,7 @@ mod replies {
 
     #[test]
     fn protocol_is_a_bare_number() {
-        assert_eq!(text(|s| write_reply(&Reply::Protocol(PROTOCOL_VERSION), s)), "2");
+        assert_eq!(text(|s| write_reply(&Reply::Protocol(PROTOCOL_VERSION), s)), "3");
         round_trip(&Command::Protocol, Reply::Protocol(PROTOCOL_VERSION));
     }
 

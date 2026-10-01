@@ -35,6 +35,8 @@ pub enum Mode {
     Solid,
     Breathe,
     Blink,
+    /// A rainbow moving across the keys; the colour is ignored.
+    Wave,
 }
 
 /// One LED's steady state.

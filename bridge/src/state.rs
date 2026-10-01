@@ -256,13 +256,16 @@ impl State {
                 }; 3]
             }
             Conn::Incompatible => [solid(palette::RED); 3],
+            Conn::Connected if self.queue.is_empty() && self.done.is_empty() => [Led {
+                rgb: palette::WHITE,
+                mode: Mode::Wave,
+            }; 3],
             Conn::Connected => {
                 let jump = match self.queue.len() {
-                    0 if !self.done.is_empty() => Led {
+                    0 => Led {
                         rgb: palette::GREEN,
                         mode: Mode::Breathe,
                     },
-                    0 => solid(palette::WHITE),
                     1 => Led {
                         rgb: palette::AMBER,
                         mode: Mode::Breathe,

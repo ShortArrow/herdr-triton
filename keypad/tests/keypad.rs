@@ -332,6 +332,36 @@ mod rendering {
         assert_eq!(k.pixels(0), [DARK, DARK, RED_OUT]);
     }
 
+    fn rgb(r: u8, g: u8, b: u8) -> Rgb {
+        Rgb { r, g, b }
+    }
+
+    #[test]
+    fn wave_starts_red_green_blue_at_the_breathing_floor() {
+        let k = showing([(WHITE, Mode::Wave); 3]);
+        assert_eq!(k.pixels(0), [rgb(6, 0, 0), rgb(0, 6, 0), rgb(0, 0, 6)]);
+    }
+
+    #[test]
+    fn wave_moves_60_degrees_and_brightens_by_half_a_second() {
+        let mut k = showing([(WHITE, Mode::Wave); 3]);
+        send(&mut k, Command::NextKey, 500);
+        assert_eq!(k.pixels(500), [rgb(35, 35, 0), rgb(0, 35, 35), rgb(35, 0, 35)]);
+    }
+
+    #[test]
+    fn wave_moves_120_degrees_at_full_brightness_by_one_second() {
+        let mut k = showing([(WHITE, Mode::Wave); 3]);
+        send(&mut k, Command::NextKey, 1000);
+        assert_eq!(k.pixels(1000), [rgb(0, 64, 0), rgb(0, 0, 64), rgb(64, 0, 0)]);
+    }
+
+    #[test]
+    fn wave_ignores_the_colour_sent() {
+        let k = showing([(RED, Mode::Wave), (WHITE, Mode::Wave), (DARK, Mode::Wave)]);
+        assert_eq!(k.pixels(0), showing([(WHITE, Mode::Wave); 3]).pixels(0));
+    }
+
     #[test]
     fn led_order_swaps_red_and_green() {
         assert_eq!(led_order(Rgb { r: 1, g: 2, b: 3 }), Rgb { r: 2, g: 1, b: 3 });

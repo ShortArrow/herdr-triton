@@ -18,6 +18,7 @@ pub const DEBOUNCE: Millis = 5;
 pub const FLASH: Millis = 150;
 pub const BLINK_PERIOD: Millis = 1000;
 pub const BREATHE_PERIOD: Millis = 2000;
+pub const WAVE_PERIOD: Millis = 3000;
 /// The brightness full colour is scaled to, out of 255.
 pub const MAX_LEVEL: u32 = 64;
 pub const KEY_QUEUE: usize = 16;
@@ -141,7 +142,7 @@ impl Keypad {
         }
         core::array::from_fn(|i| match self.flash {
             Some((pos, rgb, until)) if pos == POSITIONS[i] && now < until => scale(rgb, 1000),
-            _ => render(self.leds[i], now),
+            _ => render(self.leds[i], i, now),
         })
     }
 
@@ -191,14 +192,32 @@ fn index(pos: Position) -> usize {
 }
 
 /// One LED at `now`, before [`led_order`].
-fn render(led: Led, now: Millis) -> Rgb {
+fn render(led: Led, index: usize, now: Millis) -> Rgb {
     match led.mode {
         Mode::Off => DARK,
         Mode::Solid => scale(led.rgb, 1000),
         Mode::Blink if now % BLINK_PERIOD < BLINK_PERIOD / 2 => scale(led.rgb, 1000),
         Mode::Blink => DARK,
         Mode::Breathe => scale(led.rgb, breathe_level(now)),
+        Mode::Wave => scale(wave_colour(index, now), breathe_level(now)),
     }
+}
+
+/// The wave's colour for LED `index` at `now`: full saturation, the hue
+/// turning once per [`WAVE_PERIOD`] and offset 120° per LED.
+fn wave_colour(index: usize, now: Millis) -> Rgb {
+    let hue = ((now % WAVE_PERIOD) * 360 / WAVE_PERIOD + 120 * index as Millis) % 360;
+    let rise = ((hue % 60) * 255 / 60) as u8;
+    let fall = 255 - rise;
+    let (r, g, b) = match hue / 60 {
+        0 => (255, rise, 0),
+        1 => (fall, 255, 0),
+        2 => (0, 255, rise),
+        3 => (0, fall, 255),
+        4 => (rise, 0, 255),
+        _ => (255, 0, fall),
+    };
+    Rgb { r, g, b }
 }
 
 /// Breathe's brightness at `now` in per mille: a triangle from

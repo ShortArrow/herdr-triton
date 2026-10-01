@@ -696,8 +696,8 @@ mod frame {
     }
 
     #[test]
-    fn nothing_waiting_or_done_lights_jump_white() {
-        assert_eq!(with(vec![]).frame(), [led(WHITE, Mode::Solid), DARK, DARK]);
+    fn nothing_waiting_or_done_shows_the_wave() {
+        assert_eq!(with(vec![]).frame(), [led(WHITE, Mode::Wave); 3]);
     }
 
     #[test]
