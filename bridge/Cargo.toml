@@ -5,6 +5,13 @@ edition = "2021"
 publish = false
 license.workspace = true
 
+# main.rs has no tests; a test build would only repeat its link
+# arguments, such as the delay-loads of build.rs.
+[[bin]]
+name = "bridge"
+path = "src/main.rs"
+test = false
+
 [dependencies]
 protocol = { path = "../protocol" }
 serialport = "4"
