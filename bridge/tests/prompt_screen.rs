@@ -7,8 +7,8 @@ fn options(list: &[(u32, &str)], highlighted: Option<u32>) -> Option<PromptOptio
     })
 }
 
-/// A Claude Code screen read from herdr 0.9.1: a numbered list in the
-/// conversation, then the permission prompt.
+/// A Claude Code screen as herdr 0.9.1 reads it, with made-up content: a
+/// numbered list in the conversation, then the permission prompt.
 const CLAUDE_SCREEN: &str = "\
 ● Here are the candidates.
   1. Review the open pull request
@@ -80,8 +80,8 @@ fn a_prompt_line_that_is_not_an_option_is_not_read_as_one() {
     assert_eq!(parse("❯ check\n❯ 1.5 is not an option\n"), None);
 }
 
-/// A Claude Code question read from herdr 0.9.1: each option has a
-/// description line, and a rule separates the last option.
+/// A Claude Code question as herdr 0.9.1 reads it, with made-up content:
+/// each option has a description line, and a rule separates the last option.
 const CLAUDE_QUESTION: &str = "\
 ❯ continue
 ────────────────────────────────────────

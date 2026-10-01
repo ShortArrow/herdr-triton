@@ -119,7 +119,8 @@ herdr は自分の pane の中で `HERDR_SOCKET_PATH` を設定する。
 | WSL 2 | WSL 2。デバイスは `usbipd attach --wsl --auto-attach` で渡す | Unix socket |
 | SSH 先のリモート | 手元のマシン | `ssh -L` で転送した Unix socket |
 
-WSL 2 と SSH の行は未検証。
+いまは Windows だけに対応し、プラグインは `platforms = ["windows"]` と宣言する。
+ほかの行は、リスナーに Linux と macOS での代わりができたときに `bridge` を動かす想定の場所で、どれも未検証。
 
 ## ハードウェア
 
@@ -342,6 +343,10 @@ Windows の `serialport` は CDC ポートのシリアル番号を大文字に�
 CDC シリアルと `drooling::PicotoolReset` の複合デバイスで、`usb_rev(Usb210)`・`max_packet_size_0(64)`・`composite_with_iads()`・`LangID::EN_US` を指定して組む。
 `drool run` で書き込むときは、リセットを受け付けるデバイスを1台だけ挿しておく。
 
+デバイスは、drooling の例と同じく、Raspberry Pi の VID `0x2E8A` と Pico SDK の CDC 用 PID `0x000A` を使う。
+このリポジトリから作る趣味のデバイスで、販売しないので、自分の PID は取らない。
+この組に依存するものは無い。`bridge` はキーパッドを `TRITON-` で始まるシリアル番号で探し、`drool` はリセット用のインターフェースを記述子で探す。
+
 ## firmware ↔ bridge プロトコル
 
 USB CDC-ACM 上で、SCPI 風のテキストを1行1コマンドでやりとりする（ADR 0009）。
@@ -398,7 +403,7 @@ USB CDC-ACM 上で、SCPI 風のテキストを1行1コマンドでやりとり�
 - Approve が効くまでに、pane が承認可能な状態で留まるべき最短時間。
   質問 UI が出た瞬間に、すでに押しかけていた Approve がそれに答えてしまうのを防ぐためのもの
 - 承認後に herdr が状態変化を一度も報告しなかったときに `sent` をどう解除するか
-- リスナーのミューテックス、イベント、切り離した起動の、Linux と macOS での代わり。それまでは、そこでの `bridge hook` は自分のプロセスでキーパッドを受け持ち（herdr はそのフックを実行中と数える）、キーパッドが故障したら終了する
+- リスナーのミューテックス、イベント、切り離した起動の、Linux と macOS での代わり。それまではプラグインは Windows だけを宣言する。そこでビルドした `bridge hook` は自分のプロセスでキーパッドを受け持ち（herdr はそのフックを実行中と数える）、キーパッドが故障したら終了する
 - herdr のクライアントが複数接続されているとき、`focused` がどのクライアントの表示に対応するか
 - 複数のデバイスの同時利用
 - ネットワークの通信路: CDC-NCM 上で、TCP ポート 5025 に SCPI をそのまま流す方式。VISA からは `TCPIP::<アドレス>::5025::SOCKET`、telnet や nc からも使える。NCM のクラスを持つ `embassy-usb` に `drooling` が対応するのを待つ。SCPI のコマンドと解析処理はそのまま使う

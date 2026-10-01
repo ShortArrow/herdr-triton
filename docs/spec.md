@@ -98,7 +98,7 @@ herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from 
 | WSL 2 | WSL 2, with the device attached by `usbipd attach --wsl --auto-attach` | Unix socket |
 | Remote host over SSH | local machine | Unix socket forwarded with `ssh -L` |
 
-The WSL 2 and SSH rows are not verified.
+Only Windows is supported for now, and the plugin declares `platforms = ["windows"]`. The other rows are where `bridge` is meant to run once the listener has Linux and macOS equivalents; none of them is verified.
 
 ## Hardware
 
@@ -291,6 +291,8 @@ The USB serial number is `TRITON-` followed by the flash unique ID in hex, and t
 
 CDC serial and `drooling::PicotoolReset`, built with `usb_rev(Usb210)`, `max_packet_size_0(64)`, `composite_with_iads()` and `LangID::EN_US`. `drool run` needs exactly one reset-capable device attached.
 
+The device uses Raspberry Pi's VID `0x2E8A` with the Pico SDK's CDC PID `0x000A`, as drooling's examples do. It is a hobby device built from this repository and not sold, so it takes no PID of its own. Nothing depends on the pair: `bridge` finds the keypad by its `TRITON-` serial number, and `drool` finds the reset interface by its descriptors.
+
 ## firmware ↔ bridge protocol
 
 Carried over USB CDC-ACM as SCPI-style text, one command per line (ADR 0009). The host sends commands; the device answers queries only and never speaks unasked, so any serial terminal can drive it.
@@ -341,7 +343,7 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
 - Clearing `sent` when herdr never reports a state change after an approval
-- Linux and macOS equivalents of the listener's mutex, events and detached spawn. Until then `bridge hook` there serves the keypad in its own process, which herdr counts as a running hook, and exits when the keypad fails
+- Linux and macOS equivalents of the listener's mutex, events and detached spawn. Until then the plugin declares Windows only; a `bridge hook` built there serves the keypad in its own process, which herdr counts as a running hook, and exits when the keypad fails
 - Which client's view `focused` reflects when several herdr clients are attached
 - Several devices at once
 - A network transport: CDC-NCM with raw SCPI on TCP port 5025, reachable from VISA as `TCPIP::<address>::5025::SOCKET` and from telnet or nc. It waits for `drooling` to support `embassy-usb`, which has an NCM class; the SCPI commands and their parser stay as they are

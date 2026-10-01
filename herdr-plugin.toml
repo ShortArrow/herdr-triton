@@ -3,7 +3,9 @@ name = "herdr-triton"
 version = "0.1.0"
 min_herdr_version = "0.9.1"
 description = "Jump to, select and confirm waiting agents' prompts from an RP2040 three-key keypad"
-platforms = ["linux", "macos", "windows"]
+# Windows only for now: the listener's mutex, events and detached spawn
+# have no Linux or macOS equivalent yet (ADR 0012).
+platforms = ["windows"]
 
 # `herdr plugin install` runs this; after `herdr plugin link`, run it by hand.
 [[build]]
@@ -15,16 +17,7 @@ command = ["cargo", "install", "--locked", "--path", "bridge", "--bin", "bridge"
 platforms = ["windows"]
 command = [".plugin/bin/bridge.exe", "hook"]
 
-[[startup]]
-platforms = ["linux", "macos"]
-command = [".plugin/bin/bridge", "hook"]
-
 [[events]]
 on = "pane.agent_status_changed"
 platforms = ["windows"]
 command = [".plugin/bin/bridge.exe", "hook"]
-
-[[events]]
-on = "pane.agent_status_changed"
-platforms = ["linux", "macos"]
-command = [".plugin/bin/bridge", "hook"]
