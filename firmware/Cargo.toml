@@ -3,6 +3,7 @@ name = "firmware"
 version = "0.3.0"
 edition = "2021"
 publish = false
+license.workspace = true
 
 [[bin]]
 name = "io_probe"

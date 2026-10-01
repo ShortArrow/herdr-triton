@@ -4,6 +4,9 @@ members = ["bridge", "firmware", "keypad", "protocol"]
 # firmware builds only for thumbv6m-none-eabi; see the aliases in .cargo/config.toml.
 default-members = ["bridge", "keypad", "protocol"]
 
+[workspace.package]
+license = "MIT OR Apache-2.0"
+
 [profile.release]
 debug = 2
 lto = true
