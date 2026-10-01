@@ -14,3 +14,8 @@ rustflags = [
 [alias]
 probe = "run --release -p firmware --bin io_probe --target thumbv6m-none-eabi"
 keypad = "run --release -p firmware --bin triton --target thumbv6m-none-eabi"
+
+# ADR 0012: the resident listener links the C runtime statically, which keeps
+# it under its 1 MB memory target.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

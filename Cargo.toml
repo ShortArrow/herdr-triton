@@ -8,3 +8,5 @@ default-members = ["bridge", "keypad", "protocol"]
 debug = 2
 lto = true
 opt-level = "s"
+# No unwinding tables or landing pads; nothing here catches a panic.
+panic = "abort"
