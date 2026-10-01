@@ -2,7 +2,7 @@
 //! responses it reads (herdr `src/api/schema.rs`, `src/api/schema/response.rs`).
 
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::json;
 
 use crate::state::{Agent, Status};
 
@@ -90,11 +90,12 @@ pub fn encode_request(id: &str, request: &Request) -> String {
     line
 }
 
+/// One response line, decoded straight into the fields the bridge reads;
+/// everything else is skipped without building a JSON tree (ADR 0012).
 #[derive(Deserialize)]
-#[serde(untagged)]
-enum Envelope {
-    Success { result: Value },
-    Failure { error: ErrorBody },
+struct Envelope {
+    result: Option<RawResult>,
+    error: Option<ErrorBody>,
 }
 
 #[derive(Deserialize)]
@@ -103,16 +104,17 @@ struct ErrorBody {
     message: String,
 }
 
+/// The union of the result fields the bridge understands, keyed by `type`.
 #[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum KnownResult {
-    Pong { version: String },
-    AgentList { agents: Vec<AgentInfo> },
-    AgentInfo { agent: AgentInfo },
-    PaneRead { read: ReadText },
-    WorkspaceList { workspaces: Vec<WorkspaceInfo> },
-    PaneList { panes: Vec<PaneInfo> },
-    Ok {},
+struct RawResult {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    version: Option<String>,
+    agents: Option<Vec<AgentInfo>>,
+    agent: Option<AgentInfo>,
+    read: Option<ReadText>,
+    workspaces: Option<Vec<WorkspaceInfo>>,
+    panes: Option<Vec<PaneInfo>>,
 }
 
 #[derive(Deserialize)]
@@ -153,38 +155,6 @@ enum WireStatus {
     Unknown,
 }
 
-impl From<KnownResult> for Response {
-    fn from(result: KnownResult) -> Self {
-        match result {
-            KnownResult::Pong { version } => Response::Pong { version },
-            KnownResult::AgentList { agents } => {
-                Response::Agents(agents.into_iter().map(Agent::from).collect())
-            }
-            KnownResult::AgentInfo { agent } => Response::Agent(agent.into()),
-            KnownResult::PaneRead { read } => Response::Screen(read.text),
-            KnownResult::WorkspaceList { workspaces } => Response::Workspaces(
-                workspaces
-                    .into_iter()
-                    .map(|w| Node {
-                        id: w.workspace_id,
-                        focused: w.focused,
-                    })
-                    .collect(),
-            ),
-            KnownResult::PaneList { panes } => Response::Panes(
-                panes
-                    .into_iter()
-                    .map(|p| Node {
-                        id: p.pane_id,
-                        focused: p.focused,
-                    })
-                    .collect(),
-            ),
-            KnownResult::Ok {} => Response::Ok,
-        }
-    }
-}
-
 impl From<AgentInfo> for Agent {
     fn from(info: AgentInfo) -> Self {
         Agent {
@@ -205,22 +175,63 @@ impl From<AgentInfo> for Agent {
 
 /// Decodes one response line.
 pub fn decode_response(line: &str) -> Result<Response, WireError> {
-    let malformed = |e: serde_json::Error| WireError::Malformed(e.to_string());
-    match serde_json::from_str::<Envelope>(line).map_err(malformed)? {
-        Envelope::Failure { error } => Ok(Response::Error {
+    let envelope: Envelope =
+        serde_json::from_str(line).map_err(|e| WireError::Malformed(e.to_string()))?;
+    if let Some(error) = envelope.error {
+        return Ok(Response::Error {
             code: error.code,
             message: error.message,
+        });
+    }
+    let result = envelope
+        .result
+        .ok_or_else(|| WireError::Malformed("neither result nor error".into()))?;
+    let kind = result
+        .kind
+        .ok_or_else(|| WireError::Malformed("result has no type".into()))?;
+    let missing = |field: &str| WireError::Malformed(format!("{kind} has no {field}"));
+    let nodes = |items: Vec<(String, bool)>| {
+        items
+            .into_iter()
+            .map(|(id, focused)| Node { id, focused })
+            .collect()
+    };
+    match kind.as_str() {
+        "pong" => Ok(Response::Pong {
+            version: result.version.ok_or_else(|| missing("version"))?,
         }),
-        Envelope::Success { result } => match result.get("type").and_then(Value::as_str) {
-            None => Err(WireError::Malformed("result has no type".into())),
-            Some(
-                "pong" | "agent_list" | "agent_info" | "pane_read" | "workspace_list"
-                | "pane_list" | "ok",
-            ) => Ok(serde_json::from_value::<KnownResult>(result)
-                .map_err(malformed)?
-                .into()),
-            Some(other) => Err(WireError::Unexpected(other.to_owned())),
-        },
+        "agent_list" => Ok(Response::Agents(
+            result
+                .agents
+                .ok_or_else(|| missing("agents"))?
+                .into_iter()
+                .map(Agent::from)
+                .collect(),
+        )),
+        "agent_info" => Ok(Response::Agent(
+            result.agent.ok_or_else(|| missing("agent"))?.into(),
+        )),
+        "pane_read" => Ok(Response::Screen(
+            result.read.ok_or_else(|| missing("read"))?.text,
+        )),
+        "workspace_list" => Ok(Response::Workspaces(nodes(
+            result
+                .workspaces
+                .ok_or_else(|| missing("workspaces"))?
+                .into_iter()
+                .map(|w| (w.workspace_id, w.focused))
+                .collect(),
+        ))),
+        "pane_list" => Ok(Response::Panes(nodes(
+            result
+                .panes
+                .ok_or_else(|| missing("panes"))?
+                .into_iter()
+                .map(|p| (p.pane_id, p.focused))
+                .collect(),
+        ))),
+        "ok" => Ok(Response::Ok),
+        _ => Err(WireError::Unexpected(kind)),
     }
 }
 

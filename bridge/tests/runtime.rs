@@ -259,7 +259,10 @@ mod keys_to_herdr {
         rt.tick(10).unwrap();
         assert_eq!(
             rt.herdr().requests[2..],
-            [Request::AgentFocus { target: "b".into() }, Request::AgentList]
+            [
+                Request::AgentFocus { target: "b".into() },
+                Request::AgentList
+            ]
         );
         assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::WHITE)]);
     }

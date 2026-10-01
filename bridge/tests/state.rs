@@ -209,7 +209,10 @@ mod jump {
 
     #[test]
     fn with_nothing_waiting_or_done_focuses_the_first_agent() {
-        let mut s = with(vec![agent("a", Status::Idle, 1), agent("b", Status::Working, 1)]);
+        let mut s = with(vec![
+            agent("a", Status::Idle, 1),
+            agent("b", Status::Working, 1),
+        ]);
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
     }
 
@@ -643,7 +646,10 @@ mod jump_to_agents {
 
     #[test]
     fn wraps_from_the_last_agent_to_the_first() {
-        let mut s = with(vec![agent("a", Status::Idle, 1), focused(agent("b", Status::Idle, 1))]);
+        let mut s = with(vec![
+            agent("a", Status::Idle, 1),
+            focused(agent("b", Status::Idle, 1)),
+        ]);
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("a"));
     }
 
@@ -655,7 +661,10 @@ mod jump_to_agents {
 
     #[test]
     fn done_agents_come_before_the_rest() {
-        let mut s = with(vec![agent("a", Status::Idle, 1), agent("d", Status::Done, 1)]);
+        let mut s = with(vec![
+            agent("a", Status::Idle, 1),
+            agent("d", Status::Done, 1),
+        ]);
         assert_eq!(s.update(Msg::KeyDown(Left)), focus("d"));
     }
 }
@@ -697,7 +706,10 @@ mod frame {
 
     #[test]
     fn nothing_waiting_or_done_breathes_white_on_the_right_only() {
-        assert_eq!(with(vec![]).frame(), [DARK, DARK, led(WHITE, Mode::Breathe)]);
+        assert_eq!(
+            with(vec![]).frame(),
+            [DARK, DARK, led(WHITE, Mode::Breathe)]
+        );
     }
 
     #[test]
