@@ -6,7 +6,7 @@ English | [日本語](docs/ja/README.md)
 
 Three keys for [herdr](https://github.com/herdrdev/herdr) agents waiting on approval: **Jump** to the waiting pane, **Select** an option, **Approve** it. The LED under each key shows what is waiting.
 
-It talks to herdr's API instead of typing into the active window, runs on a cheap off-the-shelf board, stays under 1 MB of memory, and speaks plain SCPI over USB serial. Open source under MIT or Apache-2.0.
+It talks to herdr's API instead of typing into the active window, runs on a cheap off-the-shelf board, stays under 1 MB of memory, and speaks plain SCPI over USB serial. Open source under MIT or Apache-2.0; the icon is [CC BY 4.0](docs/assets/LICENSE.md).
 
 ## What you need
 

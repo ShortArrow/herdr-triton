@@ -7,7 +7,7 @@
 [herdr](https://github.com/herdrdev/herdr) のエージェントの承認待ちをさばく3つのキー。
 **Jump** で承認待ちの pane へ移り、**Select** で選択肢を選び、**Approve** で確定する。キーの下の LED が、何が待っているかを示す。
 
-アクティブなウィンドウに打ち込むのではなく herdr の API と直接話し、安い市販のボードで動き、メモリは 1 MB 未満、USB シリアル上の素の SCPI で操作できる。MIT または Apache-2.0 のオープンソース。
+アクティブなウィンドウに打ち込むのではなく herdr の API と直接話し、安い市販のボードで動き、メモリは 1 MB 未満、USB シリアル上の素の SCPI で操作できる。MIT または Apache-2.0 のオープンソース。アイコンは [CC BY 4.0](../assets/LICENSE.md)。
 
 ## 必要なもの
 
