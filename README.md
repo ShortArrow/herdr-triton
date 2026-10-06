@@ -9,7 +9,7 @@ English | [日本語](docs/ja/README.md)
 Three keys and three LEDs, wired straight into herdr: **Jump** to the agent that waits, **Select** an option, **Approve** it.
 
 - Talks to herdr's API, not to whatever window has focus
-- LEDs follow herdr: amber waits, green is done
+- LEDs follow herdr: orange waits, green is done
 - A cheap off-the-shelf RP2040 board
 - Under 1 MB resident, plain SCPI over USB
 
@@ -55,13 +55,13 @@ For a named herdr session, set `HERDR_SESSION=<name>` before `herdr plugin link`
 
 ### 4. Check it
 
-Restart herdr, or wait for any agent to change status. herdr then starts the bridge, and the left LED starts breathing: white while nothing waits, amber when an agent waits for approval.
+Restart herdr, or wait for any agent to change status. herdr then starts the bridge, and the left LED starts breathing: white while nothing waits, orange when an agent waits for approval.
 
 If the LEDs stay dim white, see [Troubleshooting](docs/usage.md#troubleshooting).
 
 ## Use
 
-When an agent asks for approval, the left LED breathes amber. Press **Jump** (left) to go to it, then **Approve** (middle) to confirm the highlighted option. To choose another option, press **Select** (right) until it is highlighted, then **Approve**.
+When an agent asks for approval, the left LED breathes orange. Press **Jump** (left) to go to it, then **Approve** (middle) to confirm the highlighted option. To choose another option, press **Select** (right) until it is highlighted, then **Approve**.
 
 [Usage](docs/usage.md) explains every key and LED, how to change the key layout, and how to drive the keypad without herdr.
 

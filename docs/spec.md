@@ -241,8 +241,8 @@ The steady LED output is a function of `(conn, device, len(queue), len(done), ap
 | `Incompatible` | red, solid | red, solid | red, solid |
 | `queue` empty, `done` not empty | green, breathing | off | off |
 | `queue` and `done` empty | white, breathing (Jump cycles every agent) | off | off |
-| `queue` has 1 | amber, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
-| `queue` has 2 or more | reddish amber, breathing | as above | as above |
+| `queue` has 1 | orange, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
+| `queue` has 2 or more | reddish orange, breathing | as above | as above |
 
 Flashes:
 

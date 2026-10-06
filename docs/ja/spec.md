@@ -283,8 +283,8 @@ Codex は `y` も受け付けるが、`y` はハイライトの位置に関係�
 | `Incompatible` | 赤・点灯 | 赤・点灯 | 赤・点灯 |
 | `queue` が空で `done` が空でない | 緑・呼吸 | 消灯 | 消灯 |
 | `queue` も `done` も空 | 白・呼吸（Jump で全エージェントを巡回できる） | 消灯 | 消灯 |
-| `queue` が1件 | 琥珀・呼吸 | `approvable(focused)` なら緑、それ以外は消灯 | `approvable(focused)` なら青、それ以外は消灯 |
-| `queue` が2件以上 | 赤寄りの琥珀・呼吸 | 同上 | 同上 |
+| `queue` が1件 | オレンジ・呼吸 | `approvable(focused)` なら緑、それ以外は消灯 | `approvable(focused)` なら青、それ以外は消灯 |
+| `queue` が2件以上 | 赤寄りのオレンジ・呼吸 | 同上 | 同上 |
 
 点滅:
 

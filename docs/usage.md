@@ -6,7 +6,7 @@ English | [日本語](ja/usage.md)
 
 | Key | Does | LED |
 |---|---|---|
-| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | amber breathing while one agent waits, reddish amber while two or more wait, green breathing while agents are finished, white breathing otherwise |
+| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | orange breathing while one agent waits, reddish orange while two or more wait, green breathing while agents are finished, white breathing otherwise |
 | Approve (middle) | Confirm the highlighted option of the focused prompt | green when the focused pane can be confirmed |
 | Select (right) | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
 
@@ -46,7 +46,7 @@ The keypad is a USB serial device whose USB serial number starts with `TRITON-`,
 
 ```text
 *IDN?                     -> ShortArrow,herdr-triton,TRITON-…,<version>
-LED1 #FF8000,BREathe      breathe the left LED amber
+LED1 #FF8000,BREathe      breathe the left LED orange
 LED:ALL #000000,OFF,#00FF00,SOLid,#0000FF,BLINk
 KEY:EVENt?                -> LEFT,DOWN, … or NONE
 SYSTem:ERRor?             -> 0,"No error"
