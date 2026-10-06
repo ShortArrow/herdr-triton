@@ -3,7 +3,7 @@
 [English](../../adr/0012-resident-listener-quiet-when-idle.md) | 日本語
 
 - Status: Accepted
-- Date: 2026-10-01
+- Base: [`d76a26c`](https://github.com/ShortArrow/herdr-triton/commit/d76a26c18999f62d63dba53f320421c6af3c3d08)
 - Supersedes: 0008
 - Amends: 0009（LED の動作確認用の `WAVe` モード、プロトコル 3）、0011（最後の段をいつでも使えるようにする）
 

@@ -4,7 +4,7 @@
 
 - Status: Accepted
 - Amended by: [0012](0012-resident-listener-quiet-when-idle.md)
-- Date: 2026-09-28
+- Base: [`6c97c0a`](https://github.com/ShortArrow/herdr-triton/commit/6c97c0ae35665db88c48818e64809397906e9867)
 - Supersedes: 0005
 
 ## Context

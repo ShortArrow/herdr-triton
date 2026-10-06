@@ -4,7 +4,7 @@ English | [日本語](../ja/adr/0003-approve-only-focused-blocked-pane.md)
 
 - Status: Accepted
 - Amended by: [0006](0006-jump-select-approve.md)
-- Date: 2026-09-28
+- Base: [`7783308`](https://github.com/ShortArrow/herdr-triton/commit/7783308fd7530214421c919a252a97b35b80e154)
 
 ## Context
 

@@ -4,7 +4,7 @@ English | [日本語](../ja/adr/0006-jump-select-approve.md)
 
 - Status: Accepted
 - Amended by: [0010](0010-select-wraps-by-reading-the-screen.md), [0011](0011-jump-falls-back-to-done-then-every-agent.md), [0013](0013-key-layout-in-plugin-config.md)
-- Date: 2026-09-28
+- Base: [`0c35e45`](https://github.com/ShortArrow/herdr-triton/commit/0c35e45260d40b7a7d70b6f061e0c944b76e16db)
 - Amends: 0003 (what Approve sends)
 
 ## Context

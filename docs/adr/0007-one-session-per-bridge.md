@@ -3,7 +3,7 @@
 English | [日本語](../ja/adr/0007-one-session-per-bridge.md)
 
 - Status: Accepted
-- Date: 2026-09-28
+- Base: [`ff9c6e8`](https://github.com/ShortArrow/herdr-triton/commit/ff9c6e8c350da6efba60c53874620ae52486495f)
 
 ## Context
 

@@ -4,7 +4,7 @@
 
 - Status: Accepted
 - Amended by: [0012](0012-resident-listener-quiet-when-idle.md)
-- Date: 2026-09-29
+- Base: [`ef8e5a7`](https://github.com/ShortArrow/herdr-triton/commit/ef8e5a7ca836056db431c819df3d6b28be5b5172)
 - Amends: 0006（Jump の移動先）、0008（リスナーが終了する条件）
 
 ## Context

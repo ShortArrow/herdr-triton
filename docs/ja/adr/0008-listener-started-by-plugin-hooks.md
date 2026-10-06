@@ -3,7 +3,7 @@
 [English](../../adr/0008-listener-started-by-plugin-hooks.md) | 日本語
 
 - Status: Superseded by [0012](0012-resident-listener-quiet-when-idle.md)
-- Date: 2026-09-28
+- Base: [`6c97c0a`](https://github.com/ShortArrow/herdr-triton/commit/6c97c0ae35665db88c48818e64809397906e9867)
 
 ## Context
 

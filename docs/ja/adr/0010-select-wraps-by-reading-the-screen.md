@@ -3,7 +3,7 @@
 [English](../../adr/0010-select-wraps-by-reading-the-screen.md) | 日本語
 
 - Status: Accepted
-- Date: 2026-09-29
+- Base: [`d6b4e57`](https://github.com/ShortArrow/herdr-triton/commit/d6b4e5725bc5a288c24317ef0fe579b325b6d5ec)
 - Amends: 0006（Select が送るキー）
 
 ## Context

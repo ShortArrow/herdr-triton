@@ -3,7 +3,7 @@
 English | [日本語](../ja/adr/0005-postcard-cobs-over-cdc-acm.md)
 
 - Status: Superseded by [0009](0009-scpi-text-protocol.md)
-- Date: 2026-09-28
+- Base: [`8dbad01`](https://github.com/ShortArrow/herdr-triton/commit/8dbad01707870647f60202e5200f0794735d3e53)
 
 ## Context
 

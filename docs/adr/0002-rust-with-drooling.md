@@ -3,7 +3,7 @@
 English | [日本語](../ja/adr/0002-rust-with-drooling.md)
 
 - Status: Accepted
-- Date: 2026-09-28
+- Base: [`7783308`](https://github.com/ShortArrow/herdr-triton/commit/7783308fd7530214421c919a252a97b35b80e154)
 
 ## Context
 

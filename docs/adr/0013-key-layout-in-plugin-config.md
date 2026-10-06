@@ -3,7 +3,7 @@
 English | [日本語](../ja/adr/0013-key-layout-in-plugin-config.md)
 
 - Status: Accepted
-- Date: 2026-10-01
+- Base: [`b442f69`](https://github.com/ShortArrow/herdr-triton/commit/b442f691183e682c815705169ae359fa489f1090)
 - Amends: 0006 (which position each key takes)
 
 ## Context

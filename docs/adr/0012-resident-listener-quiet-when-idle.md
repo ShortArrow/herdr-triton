@@ -3,7 +3,7 @@
 English | [日本語](../ja/adr/0012-resident-listener-quiet-when-idle.md)
 
 - Status: Accepted
-- Date: 2026-10-01
+- Base: [`d76a26c`](https://github.com/ShortArrow/herdr-triton/commit/d76a26c18999f62d63dba53f320421c6af3c3d08)
 - Supersedes: 0008
 - Amends: 0009 (a `WAVe` LED mode for checking the LEDs, protocol 3), 0011 (the last tier at any time)
 
