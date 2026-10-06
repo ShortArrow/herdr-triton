@@ -4,9 +4,14 @@ English | [日本語](docs/ja/README.md)
 
 <p align="center"><img src="docs/assets/triton.svg" width="200" alt="A ram-headed triton holding a trident topped with three keys"></p>
 
-Three keys for [herdr](https://github.com/herdrdev/herdr) agents waiting on approval: **Jump** to the waiting pane, **Select** an option, **Approve** it. The LED under each key shows what is waiting.
+**Approve your agents without touching the mouse.**
 
-It talks to herdr's API instead of typing into the active window, runs on a cheap off-the-shelf board, stays under 1 MB of memory, speaks plain SCPI over USB serial, and is open source.
+Three keys and three LEDs, wired straight into herdr: **Jump** to the agent that waits, **Select** an option, **Approve** it.
+
+- Talks to herdr's API, not to whatever window has focus
+- LEDs follow herdr: amber waits, green is done
+- A cheap off-the-shelf RP2040 board
+- Under 1 MB resident, plain SCPI over USB
 
 ## What you need
 
