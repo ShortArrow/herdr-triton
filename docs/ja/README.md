@@ -7,7 +7,7 @@
 [herdr](https://github.com/herdrdev/herdr) のエージェントの承認待ちをさばく3つのキー。
 **Jump** で承認待ちの pane へ移り、**Select** で選択肢を選び、**Approve** で確定する。キーの下の LED が、何が待っているかを示す。
 
-アクティブなウィンドウに打ち込むのではなく herdr の API と直接話し、安い市販のボードで動き、メモリは 1 MB 未満、USB シリアル上の素の SCPI で操作できる。MIT または Apache-2.0 のオープンソース。アイコンは [CC BY 4.0](../assets/LICENSE.md)。
+アクティブなウィンドウに打ち込むのではなく herdr の API と直接話し、安い市販のボードで動き、メモリは 1 MB 未満、USB シリアル上の素の SCPI で操作できる。オープンソースで公開している。
 
 ## 必要なもの
 
@@ -81,3 +81,7 @@ cargo keypad
 - [使い方](usage.md)
 - [仕様](spec.md)
 - [設計判断の記録（ADR）](adr/)
+
+## ライセンス
+
+コードは [MIT](../../LICENSE-MIT) または [Apache-2.0](../../LICENSE-APACHE) のどちらかを選んで使える。アイコンは [CC BY 4.0](../assets/LICENSE.md)。

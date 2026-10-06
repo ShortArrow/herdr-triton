@@ -6,7 +6,7 @@ English | [日本語](docs/ja/README.md)
 
 Three keys for [herdr](https://github.com/herdrdev/herdr) agents waiting on approval: **Jump** to the waiting pane, **Select** an option, **Approve** it. The LED under each key shows what is waiting.
 
-It talks to herdr's API instead of typing into the active window, runs on a cheap off-the-shelf board, stays under 1 MB of memory, and speaks plain SCPI over USB serial. Open source under MIT or Apache-2.0; the icon is [CC BY 4.0](docs/assets/LICENSE.md).
+It talks to herdr's API instead of typing into the active window, runs on a cheap off-the-shelf board, stays under 1 MB of memory, speaks plain SCPI over USB serial, and is open source.
 
 ## What you need
 
@@ -76,3 +76,7 @@ cargo keypad
 - [Usage](docs/usage.md)
 - [Specification](docs/spec.md)
 - [Architecture decision records](docs/adr/)
+
+## License
+
+The code is licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option. The icon is licensed under [CC BY 4.0](docs/assets/LICENSE.md).
