@@ -2,6 +2,8 @@
 
 [English](../../README.md) | 日本語
 
+<p align="center"><img src="../assets/triton.svg" width="200" alt="3つのキーを付けた三叉の矛を持つ、羊頭のトリトン"></p>
+
 [herdr](https://github.com/herdrdev/herdr) のエージェントの承認待ちをさばく3つのキー。
 **Jump** で承認待ちの pane へ移り、**Select** で選択肢を選び、**Approve** で確定する。キーの下の LED が、何が待っているかを示す。
 
