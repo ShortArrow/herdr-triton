@@ -53,6 +53,8 @@ herdr plugin link .
 
 For a named herdr session, set `HERDR_SESSION=<name>` before `herdr plugin link`.
 
+The plugin is also in the [herdr marketplace](https://herdr.dev/plugins/): `herdr plugin install ShortArrow/herdr-triton` builds and registers it from GitHub instead, without this checkout. Flashing the keypad still needs the checkout.
+
 ### 4. Check it
 
 Restart herdr, or wait for any agent to change status. herdr then starts the bridge, and the left LED starts breathing: white while nothing waits, orange when an agent waits for approval.

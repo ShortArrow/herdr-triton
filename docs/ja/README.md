@@ -53,6 +53,10 @@ herdr plugin link .
 
 名前付きの herdr セッションなら、`herdr plugin link` の前に `HERDR_SESSION=<name>` を設定する。
 
+このプラグインは [herdr のマーケットプレイス](https://herdr.dev/ja/plugins/) にも載っている。
+`herdr plugin install ShortArrow/herdr-triton` なら、このリポジトリを使わずに GitHub からビルドして登録できる。
+キーパッドへの書き込みには、やはりこのリポジトリが要る。
+
 ### 4. 確かめる
 
 herdr を再起動するか、どれかのエージェントのステータスが変わるのを待つ。
