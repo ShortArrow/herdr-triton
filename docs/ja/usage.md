@@ -65,6 +65,7 @@ SYSTem:ERRor?             -> 0,"No error"
 - **`cargo install` が `bridge.exe` を置き換えられない。** bridge が動いている。先に `.plugin/bin/bridge stop` を実行する
 - **シリアルターミナルでポートを開けない。** bridge が使っている。先に `.plugin/bin/bridge stop` を実行する
 - **`cargo keypad` がボードを見つけない。** 初回は、ボードが BOOT モードで、Zadig で WinUSB を入れてある必要がある（README を見る）
+- **Jump でエージェントではなく workspaces ペインに飛ぶ。** herdr の既知の問題。herdr の agents ペインが全エージェントを表示しきれずスクロールバーが出ていると、見切れたエージェントに herdr がフォーカスを移せない。エージェントのペインへのフォーカスは移るが、サイドバーのフォーカスは workspaces ペインに落ちる。agents ペインを全エージェントが収まる高さにする
 
 ## 開発用
 

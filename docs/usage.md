@@ -60,6 +60,7 @@ The specification lists every command, mode and error ([protocol](spec.md#firmwa
 - **`cargo install` cannot replace `bridge.exe`.** The bridge is running; run `.plugin/bin/bridge stop` first
 - **A serial terminal cannot open the port.** The bridge holds it; run `.plugin/bin/bridge stop` first
 - **`cargo keypad` finds no board.** The first time, the board must be in BOOT mode with the WinUSB driver from Zadig (see the README)
+- **Jump lands in the workspaces pane instead of on the agent.** A known herdr issue: when herdr's agents pane is too short for every agent and shows a scroll bar, herdr cannot move its focus to an agent scrolled out of view. herdr does focus the agent's pane, but its sidebar falls back to the workspaces pane. Make the agents pane tall enough to show every agent
 
 ## For development
 
