@@ -13,6 +13,15 @@ Three keys and three LEDs, wired straight into herdr: **Jump** to the agent that
 - A cheap off-the-shelf RP2040 board
 - Under 1 MB resident, plain SCPI over USB
 
+The plugin is the triton, and `trident` is what it holds: a small program whose three prongs reach the three keys.
+
+```mermaid
+flowchart LR
+  herdr[herdr] -->|plugin hooks| trident
+  trident <-->|API| herdr
+  trident <-->|USB, SCPI| jump[Jump] & approve[Approve] & select[Select]
+```
+
 ## What you need
 
 - A [Waveshare RP2040-Keyboard-3](https://www.waveshare.com/wiki/RP2040-Keyboard-3) and a USB-C cable
@@ -47,7 +56,7 @@ When it finishes, the three LEDs glow dim white. Use only one of the board's two
 From a terminal outside herdr, in the checkout:
 
 ```sh
-cargo install --locked --path bridge --bin bridge --root .plugin
+cargo install --locked --path trident --bin trident --root .plugin
 herdr plugin link .
 ```
 
@@ -57,7 +66,7 @@ The plugin is also in the [herdr marketplace](https://herdr.dev/plugins/): `herd
 
 ### 4. Check it
 
-Restart herdr, or wait for any agent to change status. herdr then starts the bridge, and the left LED starts breathing: white while nothing waits, orange when an agent waits for approval.
+Restart herdr, or wait for any agent to change status. herdr then starts `trident`, and the left LED starts breathing: white while nothing waits, orange when an agent waits for approval.
 
 If the LEDs stay dim white, see [Troubleshooting](docs/usage.md#troubleshooting).
 
@@ -71,12 +80,14 @@ When an agent asks for approval, the left LED breathes orange. Press **Jump** (l
 
 ```sh
 git pull
-.plugin/bin/bridge stop
-cargo install --locked --path bridge --bin bridge --root .plugin
+.plugin/bin/trident stop
+cargo install --locked --path trident --bin trident --root .plugin
 cargo keypad
 ```
 
-`bridge stop` releases the running bridge so that `cargo install` can replace it; herdr starts the new one at the next agent status change. `cargo keypad` needs no button after the first time.
+`trident stop` releases the running `trident` so that `cargo install` can replace it; herdr starts the new one at the next agent status change. `cargo keypad` needs no button after the first time.
+
+The program was called `bridge` before; the first time you update from such a checkout, run `.plugin/bin/bridge stop` in place of `.plugin/bin/trident stop`.
 
 ## Documents
 

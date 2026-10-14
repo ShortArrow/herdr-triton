@@ -13,6 +13,15 @@ herdr に直結した3つのキーと3つの LED。**Jump** で待っている�
 - 安い市販の RP2040 ボードで動く
 - 常駐 1 MB 未満、USB 上の素の SCPI
 
+プラグインがトリトンで、`trident` はトリトンが持つ三叉の矛。3つの刃先が3つのキーにつながる小さなプログラム。
+
+```mermaid
+flowchart LR
+  herdr[herdr] -->|プラグインのフック| trident
+  trident <-->|API| herdr
+  trident <-->|USB、SCPI| jump[Jump] & approve[Approve] & select[Select]
+```
+
 ## 必要なもの
 
 - [Waveshare RP2040-Keyboard-3](https://www.waveshare.com/wiki/RP2040-Keyboard-3) と USB-C ケーブル
@@ -47,7 +56,7 @@ cargo keypad
 herdr の外のターミナルで、このリポジトリに移動して次を実行する。
 
 ```sh
-cargo install --locked --path bridge --bin bridge --root .plugin
+cargo install --locked --path trident --bin trident --root .plugin
 herdr plugin link .
 ```
 
@@ -60,7 +69,7 @@ herdr plugin link .
 ### 4. 確かめる
 
 herdr を再起動するか、どれかのエージェントのステータスが変わるのを待つ。
-herdr が bridge を起動し、左の LED が呼吸を始める。待つものが無ければ白、承認待ちがあればオレンジ。
+herdr が trident を起動し、左の LED が呼吸を始める。待つものが無ければ白、承認待ちがあればオレンジ。
 
 LED が薄い白のままなら、[困ったとき](usage.md#困ったとき) を見る。
 
@@ -76,13 +85,15 @@ LED が薄い白のままなら、[困ったとき](usage.md#困ったとき) �
 
 ```sh
 git pull
-.plugin/bin/bridge stop
-cargo install --locked --path bridge --bin bridge --root .plugin
+.plugin/bin/trident stop
+cargo install --locked --path trident --bin trident --root .plugin
 cargo keypad
 ```
 
-`bridge stop` で動いている bridge を止めると、`cargo install` が実行ファイルを置き換えられる。新しい bridge は、次にエージェントのステータスが変わったときに herdr が起動する。
+`trident stop` で動いている `trident` を止めると、`cargo install` が実行ファイルを置き換えられる。新しい `trident` は、次にエージェントのステータスが変わったときに herdr が起動する。
 2回目以降の `cargo keypad` ではボタンは要らない。
+
+このプログラムは以前 `bridge` という名前だった。その頃の checkout から初めて更新するときは、`.plugin/bin/trident stop` の代わりに `.plugin/bin/bridge stop` を実行する。
 
 ## ドキュメント
 

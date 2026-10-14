@@ -15,9 +15,9 @@ Approve が効くのは、フォーカス中の pane が承認待ちのときの
 
 | 3つの LED | 意味 |
 |---|---|
-| 薄い白 | bridge が動いていない |
-| 赤の点滅 | bridge が herdr につながらない |
-| 赤の点灯 | herdr が 0.9.1 より古い（`bridge run` のときだけ。プラグインの bridge は止まる） |
+| 薄い白 | trident が動いていない |
+| 赤の点滅 | trident が herdr につながらない |
+| 赤の点灯 | herdr が 0.9.1 より古い（`trident run` のときだけ。プラグインの trident は止まる） |
 
 ## キーの配置を変える
 
@@ -32,14 +32,14 @@ layout = ["select", "jump", "approve"]   # 左、中、右
 ```
 
 `jump`、`approve`、`select` を1回ずつ書く。
-そのあと `.plugin/bin/bridge stop` を実行すると、次にエージェントのステータスが変わったときに、新しい配置で herdr が bridge を起動する。
+そのあと `.plugin/bin/trident stop` を実行すると、次にエージェントのステータスが変わったときに、新しい配置で herdr が trident を起動する。
 キーは自分の LED を連れて移る。
-使えないファイルなら既定の配置のまま動き、理由は `bridge.log` に書かれる。
+使えないファイルなら既定の配置のまま動き、理由は `trident.log` に書かれる。
 
 ## プラグインを使わない
 
 ```sh
-cargo run --release -p bridge --bin bridge -- run
+cargo run --release -p trident --bin trident -- run
 ```
 
 で、止めるまでキーパッドを受け持つ。名前付きの herdr セッションなら `--session <name>` を付ける。
@@ -47,7 +47,7 @@ cargo run --release -p bridge --bin bridge -- run
 ## キーパッドを直接操作する
 
 キーパッドは、USB シリアル番号が `TRITON-` で始まる USB シリアルデバイスで、1行に1つの SCPI のテキストコマンドに答える。
-先に bridge を止めて（`.plugin\bin\bridge.exe stop`）、どのシリアルターミナルや VISA ライブラリからでも次のように操作できる。
+先に trident を止めて（`.plugin\bin\trident.exe stop`）、どのシリアルターミナルや VISA ライブラリからでも次のように操作できる。
 
 ```text
 *IDN?                     -> ShortArrow,herdr-triton,TRITON-…,<version>
@@ -61,9 +61,9 @@ SYSTem:ERRor?             -> 0,"No error"
 
 ## 困ったとき
 
-- **LED が薄い白のまま。** herdr がまだ bridge を起動していない。herdr を再起動するか、エージェントのステータスが変わるのを待つ。プラグインの状態ディレクトリ（Windows では `%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\`）の `bridge.log` に、起動、受け持つポート、止まった理由が記録される
-- **`cargo install` が `bridge.exe` を置き換えられない。** bridge が動いている。先に `.plugin/bin/bridge stop` を実行する
-- **シリアルターミナルでポートを開けない。** bridge が使っている。先に `.plugin/bin/bridge stop` を実行する
+- **LED が薄い白のまま。** herdr がまだ trident を起動していない。herdr を再起動するか、エージェントのステータスが変わるのを待つ。プラグインの状態ディレクトリ（Windows では `%LOCALAPPDATA%\herdr\plugins\shortarrow.herdr-triton\`）の `trident.log` に、起動、受け持つポート、止まった理由が記録される
+- **`cargo install` が `trident.exe` を置き換えられない。** trident が動いている。先に `.plugin/bin/trident stop` を実行する
+- **シリアルターミナルでポートを開けない。** trident が使っている。先に `.plugin/bin/trident stop` を実行する
 - **`cargo keypad` がボードを見つけない。** 初回は、ボードが BOOT モードで、Zadig で WinUSB を入れてある必要がある（README を見る）
 - **Jump でエージェントではなく workspaces ペインに飛ぶ。** herdr の既知の問題。herdr の agents ペインが全エージェントを表示しきれずスクロールバーが出ていると、見切れたエージェントに herdr がフォーカスを移せない。エージェントのペインへのフォーカスは移るが、サイドバーのフォーカスは workspaces ペインに落ちる。agents ペインを全エージェントが収まる高さにする
 
@@ -72,4 +72,4 @@ SYSTem:ERRor?             -> 0,"No error"
 | コマンド | 用途 |
 |---|---|
 | `cargo probe` | 各 LED を決まった色で点け、キーの押下を報告するファームウェアを書き込む。どのキーと LED がどこにあるかを確かめられる |
-| `cargo run -p bridge --bin herdr_probe` | herdr のバージョンとエージェントを表示する。`read select_id <pane>` はプロンプトのハイライト中の選択肢を表示する |
+| `cargo run -p trident --bin herdr_probe` | herdr のバージョンとエージェントを表示する。`read select_id <pane>` はプロンプトのハイライト中の選択肢を表示する |

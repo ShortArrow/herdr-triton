@@ -6,74 +6,80 @@ When a herdr agent is waiting for approval (`blocked`), the three keys of an RP2
 
 ## Architecture
 
-```
-[herdr] --plugin event / startup--> [bridge hook]   one listener at a time
-[RP2040-Keyboard-3] <--USB CDC, SCPI--> [bridge] --local socket--> [herdr]
-   queues key events, draws LEDs          polls agent.list and KEY:EVENt?
+```mermaid
+flowchart LR
+  herdr[herdr]
+  hook["trident hook"]
+  listen["trident listen<br/>polls agent.list and KEY:EVENt?<br/>one at a time"]
+  keypad["RP2040-Keyboard-3<br/>queues key events, draws LEDs"]
+  herdr -->|"plugin startup and event hooks"| hook
+  hook -->|"wakes, or starts"| listen
+  listen <-->|"local socket"| herdr
+  listen <-->|"USB CDC, SCPI"| keypad
 ```
 
 | Component | Responsibility |
 |---|---|
 | `firmware` | Queues debounced key events and answers `KEY:EVENt?`. Draws the LEDs it is told to. Detects a missing host. Makes no herdr decisions |
-| `bridge` | Polls herdr for a snapshot of all agents and the device for key events, holds the state, turns key input into herdr requests, and decides the LED output |
-| `protocol` | Message types shared by `firmware` and `bridge`, and their SCPI text form. `no_std` |
+| `trident` | Polls herdr for a snapshot of all agents and the device for key events, holds the state, turns key input into herdr requests, and decides the LED output |
+| `protocol` | Message types shared by `firmware` and `trident`, and their SCPI text form. `no_std` |
 | `keypad` | The firmware's hardware-free core. `no_std` |
-| plugin | `herdr-plugin.toml`: starts `bridge hook` from herdr's startup and event hooks |
+| plugin | `herdr-plugin.toml`: starts `trident hook` from herdr's startup and event hooks |
 
-The device is an IO instrument on a serial line, not a HID keyboard. Key input reaches `bridge` over serial only.
+The device is an IO instrument on a serial line, not a HID keyboard. Key input reaches `trident` over serial only.
 
 ## Listener lifecycle
 
-A resident `bridge listen` serves the keypad for the life of the herdr server that started it (ADR 0012).
+A resident `trident listen` serves the keypad for the life of the herdr server that started it (ADR 0012).
 
 | Given | When | Then |
 |---|---|---|
-| any | herdr runs the plugin's `startup`, or emits `pane.agent_status_changed` | herdr starts `bridge hook` |
-| a listener holds the named mutex | `bridge hook` starts | it sets the listener's wake event and exits |
-| no listener | `bridge hook` starts | it finds the keypad's port, spawns `bridge listen --port <port>` and exits; with no keypad it just exits |
+| any | herdr runs the plugin's `startup`, or emits `pane.agent_status_changed` | herdr starts `trident hook` |
+| a listener holds the named mutex | `trident hook` starts | it sets the listener's wake event and exits |
+| no listener | `trident hook` starts | it finds the keypad's port, spawns `trident listen --port <port>` and exits; with no keypad it just exits |
 | listener | it starts and the mutex is already held | it exits |
 | listener, quiet | the wake event is set, or a key goes down | it takes a snapshot and becomes active; a key is then handled on that snapshot |
 | listener, active | `queue` and `done` have both been empty for 5 s | it becomes quiet |
 | listener, active | herdr has been unreachable for 5 s, or its version is not supported | it exits |
 | listener, quiet | herdr's endpoint has been missing for 5 s | it exits |
-| listener | `bridge stop` sets the stop event | it exits |
-| listener | the keypad fails or disappears | it closes the port and runs `bridge find-port` every second until the keypad is back |
+| listener | `trident stop` sets the stop event | it exits |
+| listener | the keypad fails or disappears | it closes the port and runs `trident find-port` every second until the keypad is back |
 
 | Mode | Requests to herdr | `KEY:EVENt?` | LEDs |
 |---|---|---|---|
 | quiet | none; every second it checks that herdr's endpoint exists, without connecting | every 250 ms | Jump's LED breathing white, the others off |
 | active | `agent.list` every 250 ms and after each request | every 20 ms | as in "LEDs" |
 
-On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `bridge hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `bridge.log`. It starts `bridge find-port` with `CREATE_NO_WINDOW`, since a console program started from a process without a console otherwise opens a console window.
+On Windows, the mutex, wake event and stop event are named after the user session (`Local\herdr-triton-listener`, `-wake`, `-stop`). Before spawning, `trident hook` clears `HANDLE_FLAG_INHERIT` on its standard handles, since herdr counts a hook as running until its stdout and stderr close. The listener is created with `DETACHED_PROCESS` and `CREATE_NEW_PROCESS_GROUP`, with its working directory set to the plugin's state directory, and logs there to `trident.log`. It starts `trident find-port` with `CREATE_NO_WINDOW`, since a console program started from a process without a console otherwise opens a console window.
 
-The first herdr session whose hook starts a listener keeps the keypad until its server stops. `bridge run` runs the active loop without quiet mode or exit rules, for use without the plugin. With no listener, the device is in `NoHost` and shows dim white.
+The first herdr session whose hook starts a listener keeps the keypad until its server stops. `trident run` runs the active loop without quiet mode or exit rules, for use without the plugin. With no listener, the device is in `NoHost` and shows dim white.
 
 ### Memory
 
-The listener stays at or under 1 MB in Task Manager's Memory column (active private working set), taken as the highest value over a 1 h run. To that end it links the C runtime statically, talks to herdr over `std` named pipes instead of `interprocess`, decodes herdr's replies into typed structs without `serde_json::Value`, and never enumerates serial ports itself. The `bridge` executable delay-loads `setupapi.dll`, `cfgmgr32.dll`, `advapi32.dll` and `bcryptprimitives.dll`, which only port enumeration and hashing with a random seed call, so a listener loads none of them; its own maps are ordered maps, which need no seed.
+The listener stays at or under 1 MB in Task Manager's Memory column (active private working set), taken as the highest value over a 1 h run. To that end it links the C runtime statically, talks to herdr over `std` named pipes instead of `interprocess`, decodes herdr's replies into typed structs without `serde_json::Value`, and never enumerates serial ports itself. The `trident` executable delay-loads `setupapi.dll`, `cfgmgr32.dll`, `advapi32.dll` and `bcryptprimitives.dll`, which only port enumeration and hashing with a random seed call, so a listener loads none of them; its own maps are ordered maps, which need no seed.
 
 ## herdr
 
 ### Requirements
 
 - herdr 0.9.1 or later. Earlier versions do not move the attached client on `agent.focus` and do not report manual focus changes
-- `bridge` runs as the same OS user as herdr
+- `trident` runs as the same OS user as herdr
 
-`bridge` sends `ping` on connect and treats a `version` below 0.9.1 as `Incompatible`.
+`trident` sends `ping` on connect and treats a `version` below 0.9.1 as `Incompatible`.
 
 ### Connection
 
-herdr's API accepts one request per connection: the server reads the first line and answers it. `bridge` opens a new connection for every request. Each request has a 2 s deadline; a request that misses it counts as failed. Whenever the loop becomes active, and after herdr becomes reachable again, `bridge` sends `ping` before its next snapshot. A listener that gets an unsupported version exits; `bridge run` shows `Incompatible`.
+herdr's API accepts one request per connection: the server reads the first line and answers it. `trident` opens a new connection for every request. Each request has a 2 s deadline; a request that misses it counts as failed. Whenever the loop becomes active, and after herdr becomes reachable again, `trident` sends `ping` before its next snapshot. A listener that gets an unsupported version exits; `trident run` shows `Incompatible`.
 
-One `bridge` serves one herdr session (ADR 0007). `bridge --session <name>` picks it by name, `default` being the default session, and wins over the environment, as herdr's own `--session` does. Without `--session`, the socket path is resolved as herdr resolves it, in this order:
+One `trident` serves one herdr session (ADR 0007). `trident --session <name>` picks it by name, `default` being the default session, and wins over the environment, as herdr's own `--session` does. Without `--session`, the socket path is resolved as herdr resolves it, in this order:
 
 1. `HERDR_SOCKET_PATH`
 2. `HERDR_SESSION`, giving `<config>/sessions/<name>/herdr.sock`
 3. `<config>/herdr.sock`
 
-`<config>` is `$XDG_CONFIG_HOME/herdr` when set, otherwise `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere. On Windows the path string names a named pipe, `\\.\pipe\<path>` (as interprocess `GenericNamespaced` maps it for herdr), and the file at that path is only a marker. `bridge` opens it with `std`, and when every pipe instance is busy it waits for one with `WaitNamedPipeW`. A quiet listener checks the pipe with `WaitNamedPipeW` alone, which does not connect: the pipe exists when an instance is free or the wait times out. On Unix it checks that the socket file exists.
+`<config>` is `$XDG_CONFIG_HOME/herdr` when set, otherwise `%APPDATA%\herdr` on Windows and `~/.config/herdr` elsewhere. On Windows the path string names a named pipe, `\\.\pipe\<path>` (as interprocess `GenericNamespaced` maps it for herdr), and the file at that path is only a marker. `trident` opens it with `std`, and when every pipe instance is busy it waits for one with `WaitNamedPipeW`. A quiet listener checks the pipe with `WaitNamedPipeW` alone, which does not connect: the pipe exists when an instance is free or the wait times out. On Unix it checks that the socket file exists.
 
-herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from a herdr pane talks to that pane's session whatever `HERDR_SESSION` says.
+herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `trident` started from a herdr pane talks to that pane's session whatever `HERDR_SESSION` says.
 
 ### Requests used
 
@@ -85,20 +91,20 @@ herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `bridge` started from 
 | `agent.send_keys {target, keys}` | Approve and Select. herdr rejects it if the pane no longer hosts the same agent |
 | `agent.read {target, source: "visible"}` | Select, for an agent whose list does not wrap: the screen, to find the highlight |
 
-`bridge` does not use `events.subscribe`. See ADR 0004.
+`trident` does not use `events.subscribe`. See ADR 0004.
 
 ## Deployment
 
-`bridge` runs on the machine the device is plugged into, and must reach herdr's socket from there.
+`trident` runs on the machine the device is plugged into, and must reach herdr's socket from there.
 
-| herdr runs on | bridge runs on | Path to herdr |
+| herdr runs on | trident runs on | Path to herdr |
 |---|---|---|
 | Windows | Windows | named pipe |
 | Linux / macOS, same machine | same machine | Unix socket |
 | WSL 2 | WSL 2, with the device attached by `usbipd attach --wsl --auto-attach` | Unix socket |
 | Remote host over SSH | local machine | Unix socket forwarded with `ssh -L` |
 
-Only Windows is supported for now, and the plugin declares `platforms = ["windows"]`. The other rows are where `bridge` is meant to run once the listener has Linux and macOS equivalents; none of them is verified.
+Only Windows is supported for now, and the plugin declares `platforms = ["windows"]`. The other rows are where `trident` is meant to run once the listener has Linux and macOS equivalents; none of them is verified.
 
 ## Hardware
 
@@ -135,7 +141,7 @@ To approve, press Jump, then Approve. To pick another option, such as rejecting,
 
 ## Configuration
 
-`bridge` reads `config.toml` from the plugin's configuration directory: `HERDR_PLUGIN_CONFIG_DIR` when herdr sets it, otherwise `<config>/plugins/config/shortarrow.herdr-triton`, with `<config>` as in "Connection". `herdr plugin config-dir shortarrow.herdr-triton` prints it.
+`trident` reads `config.toml` from the plugin's configuration directory: `HERDR_PLUGIN_CONFIG_DIR` when herdr sets it, otherwise `<config>/plugins/config/shortarrow.herdr-triton`, with `<config>` as in "Connection". `herdr plugin config-dir shortarrow.herdr-triton` prints it.
 
 ```toml
 layout = ["jump", "approve", "select"]
@@ -151,15 +157,15 @@ layout = ["jump", "approve", "select"]
 | The file does not parse as TOML, or `layout` is not one of each name | The defaults, and a log line saying why |
 | A field this table does not name | Ignored |
 
-`bridge` reads the file once when it starts; a listener keeps the configuration it started with until `bridge stop`.
+`trident` reads the file once when it starts; a listener keeps the configuration it started with until `trident stop`.
 
-## bridge state
+## trident state
 
 | Name | Type | Meaning |
 |---|---|---|
 | `conn` | `Disconnected \| Incompatible \| Connected` | Reachability of herdr |
 | `device` | `Absent \| Present` | Whether the serial port is open |
-| `queue` | sequence of `(pane_id, agent, state_change_seq)` | Agents in `blocked`, in the order `bridge` first saw them blocked |
+| `queue` | sequence of `(pane_id, agent, state_change_seq)` | Agents in `blocked`, in the order `trident` first saw them blocked |
 | `focused` | `pane_id` or none | The agent pane herdr reports as `focused` |
 | `sent` | set of `(pane_id, state_change_seq)` | Confirmations sent and not yet followed by a state change |
 | `done` | sequence of `pane_id` | Agents in `done`, finished and not yet seen, in `agent.list` order |
@@ -181,7 +187,7 @@ Key events and snapshots are handled one at a time in a single loop. A key press
 
 ### Snapshot
 
-`bridge` calls `agent.list` every 250 ms and after every request it sends. Applying a snapshot:
+`trident` calls `agent.list` every 250 ms and after every request it sends. Applying a snapshot:
 
 | Given | Then |
 |---|---|
@@ -192,7 +198,7 @@ Key events and snapshots are handled one at a time in a single loop. A key press
 | any | `done` = the agents in `done`; `agents` = every agent |
 | any | Drop from `sent` every entry that no longer matches `queue` |
 
-A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` and `sent`. `bridge` keeps retrying.
+A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` and `sent`. `trident` keeps retrying.
 
 ### Keys
 
@@ -273,7 +279,7 @@ A key reports `Down` or `Up` once its level has stayed the same for 5 ms. Report
 | `Blink` | The colour for 500 ms, dark for 500 ms |
 | `Breathe` | The colour, its brightness rising from 10 % to 100 % and back over 2 s |
 | `Flash` | The flash colour on that key for 150 ms, over whatever it showed |
-| `Wave` | For checking the LEDs; the bridge does not use it. A rainbow that moves across the keys: LED `n` shows hue `360° × t / 3 s + 120° × (n − 1)` at full saturation, its brightness breathing as `Breathe`; the colour sent is ignored |
+| `Wave` | For checking the LEDs; `trident` does not use it. A rainbow that moves across the keys: LED `n` shows hue `360° × t / 3 s + 120° × (n − 1)` at full saturation, its brightness breathing as `Breathe`; the colour sent is ignored |
 | `NoHost` | White at 8/255 on all three |
 
 Every colour is scaled so that full brightness is 64/255; WS2812s at full power are uncomfortable to look at. The LEDs take RGB and `ws2812-pio` sends GRB, so the firmware swaps red and green last.
@@ -285,15 +291,15 @@ Every colour is scaled so that full brightness is 64/255; WS2812s at full power 
 
 ### Identification
 
-The USB serial number is `TRITON-` followed by the flash unique ID in hex, and the product string is `herdr-triton`. `bridge` finds the device by the `TRITON-` prefix of the serial number, ignoring case: on Windows `serialport` reports a CDC port's serial number, upper-cased, but gives the port's display name in place of the product string. The VID/PID is not used for identification.
+The USB serial number is `TRITON-` followed by the flash unique ID in hex, and the product string is `herdr-triton`. `trident` finds the device by the `TRITON-` prefix of the serial number, ignoring case: on Windows `serialport` reports a CDC port's serial number, upper-cased, but gives the port's display name in place of the product string. The VID/PID is not used for identification.
 
 ### USB composition
 
 CDC serial and `drooling::PicotoolReset`, built with `usb_rev(Usb210)`, `max_packet_size_0(64)`, `composite_with_iads()` and `LangID::EN_US`. `drool run` needs exactly one reset-capable device attached.
 
-The device uses Raspberry Pi's VID `0x2E8A` with the Pico SDK's CDC PID `0x000A`, as drooling's examples do. It is a hobby device built from this repository and not sold, so it takes no PID of its own. Nothing depends on the pair: `bridge` finds the keypad by its `TRITON-` serial number, and `drool` finds the reset interface by its descriptors.
+The device uses Raspberry Pi's VID `0x2E8A` with the Pico SDK's CDC PID `0x000A`, as drooling's examples do. It is a hobby device built from this repository and not sold, so it takes no PID of its own. Nothing depends on the pair: `trident` finds the keypad by its `TRITON-` serial number, and `drool` finds the reset interface by its descriptors.
 
-## firmware ↔ bridge protocol
+## firmware ↔ trident protocol
 
 Carried over USB CDC-ACM as SCPI-style text, one command per line (ADR 0009). The host sends commands; the device answers queries only and never speaks unasked, so any serial terminal can drive it.
 
@@ -323,7 +329,7 @@ Errors are queued, up to 8, and read with `SYSTem:ERRor?`:
 
 The `protocol` crate holds the typed commands and replies and their text form, used by both ends.
 
-`bridge` sets DTR on opening the port, discards input already buffered, and asks `SYSTem:PROTocol?`. On a version other than its own it closes the port and reports the mismatch. It then sends `LED:ALL` on every change and at least once per second, and polls `KEY:EVENt?` as in "Listener lifecycle" until it answers `NONE`.
+`trident` sets DTR on opening the port, discards input already buffered, and asks `SYSTem:PROTocol?`. On a version other than its own it closes the port and reports the mismatch. It then sends `LED:ALL` on every change and at least once per second, and polls `KEY:EVENt?` as in "Listener lifecycle" until it answers `NONE`.
 
 ## Dependencies
 
@@ -343,7 +349,7 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
 - Clearing `sent` when herdr never reports a state change after an approval
-- Linux and macOS equivalents of the listener's mutex, events and detached spawn. Until then the plugin declares Windows only; a `bridge hook` built there serves the keypad in its own process, which herdr counts as a running hook, and exits when the keypad fails
+- Linux and macOS equivalents of the listener's mutex, events and detached spawn. Until then the plugin declares Windows only; a `trident hook` built there serves the keypad in its own process, which herdr counts as a running hook, and exits when the keypad fails
 - Which client's view `focused` reflects when several herdr clients are attached
 - Several devices at once
 - A network transport: CDC-NCM with raw SCPI on TCP port 5025, reachable from VISA as `TCPIP::<address>::5025::SOCKET` and from telnet or nc. It waits for `drooling` to support `embassy-usb`, which has an NCM class; the SCPI commands and their parser stay as they are
