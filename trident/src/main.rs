@@ -10,8 +10,8 @@
 //! ```
 //!
 //! `hook` is what the herdr plugin runs; it logs to
-//! `$HERDR_PLUGIN_STATE_DIR/bridge.log`, and the listener it starts logs to
-//! `bridge.log` in its working directory, the same state directory. `run`
+//! `$HERDR_PLUGIN_STATE_DIR/trident.log`, and the listener it starts logs to
+//! `trident.log` in its working directory, the same state directory. `run`
 //! logs to standard error. `listen` and `stop` need Windows; elsewhere,
 //! `hook` runs the listener in its own process.
 
@@ -142,7 +142,7 @@ fn hook(_session: Option<&str>, socket: &Path) -> ExitCode {
 fn listen(socket: &Path, mut port: String) -> ExitCode {
     use trident::listener::{Claim, Names, LISTENER};
 
-    let mut log = Log::file(Path::new("bridge.log"));
+    let mut log = Log::file(Path::new("trident.log"));
     let claim = match Claim::take(&Names::new(LISTENER)) {
         Ok(Some(claim)) => claim,
         Ok(None) => {
@@ -419,9 +419,9 @@ impl Log {
         Log(Box::new(io::stderr()))
     }
 
-    /// `bridge.log` in the plugin's state directory.
+    /// `trident.log` in the plugin's state directory.
     fn in_state_dir() -> Self {
-        Self::file(&state_dir().join("bridge.log"))
+        Self::file(&state_dir().join("trident.log"))
     }
 
     /// Appends to `path`, or falls back to standard error.
