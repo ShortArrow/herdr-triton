@@ -1,4 +1,4 @@
-use bridge::prompt_screen::{parse, PromptOptions};
+use trident::prompt_screen::{parse, PromptOptions};
 
 fn options(list: &[(u32, &str)], highlighted: Option<u32>) -> Option<PromptOptions> {
     Some(PromptOptions {

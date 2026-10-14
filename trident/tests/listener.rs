@@ -7,7 +7,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use bridge::listener::{running, send, spawn_detached, Claim, Names, Signal};
+use trident::listener::{running, send, spawn_detached, Claim, Names, Signal};
 
 fn names() -> Names {
     static N: AtomicUsize = AtomicUsize::new(0);

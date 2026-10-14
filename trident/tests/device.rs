@@ -4,11 +4,11 @@
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 
-use bridge::device::{find_port, Device};
 use keypad::Keypad;
 use protocol::scpi::{LineBuffer, PROTOCOL_VERSION};
 use protocol::{Edge, Led, Mode, Position, Rgb};
 use serialport::{SerialPortInfo, SerialPortType, UsbPortInfo};
+use trident::device::{find_port, Device};
 
 /// A keypad on the other end of a serial line, with DTR high.
 struct Sim {

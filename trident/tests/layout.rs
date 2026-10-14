@@ -1,8 +1,8 @@
 //! Which key sits at which position (ADR 0013).
 
-use bridge::layout::Layout;
-use bridge::state::Key::{self, *};
 use protocol::{Led, Mode, Position, Rgb};
+use trident::layout::Layout;
+use trident::state::Key::{self, *};
 
 fn led(r: u8) -> Led {
     Led {

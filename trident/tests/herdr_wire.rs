@@ -1,6 +1,6 @@
-use bridge::herdr::wire::*;
-use bridge::state::{Agent, Status};
 use serde_json::{json, Value};
+use trident::herdr::wire::*;
+use trident::state::{Agent, Status};
 
 fn encoded(request: &Request) -> Value {
     let line = encode_request("r1", request);
@@ -146,7 +146,7 @@ mod responses {
     }
 
     #[test]
-    fn agent_list_keeps_the_fields_the_bridge_uses_and_ignores_the_rest() {
+    fn agent_list_keeps_the_fields_trident_uses_and_ignores_the_rest() {
         let got = decode(
             json!({"id": "r1", "result": {"type": "agent_list", "agents": [
                 {"terminal_id": "t1", "agent": "claude", "agent_status": "blocked", "workspace_id": "w1",

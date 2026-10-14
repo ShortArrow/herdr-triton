@@ -3,11 +3,11 @@
 use std::collections::VecDeque;
 use std::io;
 
-use bridge::herdr::client::CallError;
-use bridge::herdr::wire::{Request, Response};
-use bridge::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime, ACTIVE_TICK, QUIET_TICK};
-use bridge::state::{palette, Agent, AgentKeys, PromptKeys, Status, Wrap};
 use protocol::{Edge, Led, Mode, Position, Rgb};
+use trident::herdr::client::CallError;
+use trident::herdr::wire::{Request, Response};
+use trident::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime, ACTIVE_TICK, QUIET_TICK};
+use trident::state::{palette, Agent, AgentKeys, PromptKeys, Status, Wrap};
 
 #[derive(Default)]
 struct FakeHerdr {
@@ -557,8 +557,8 @@ mod listening {
 
 mod layout {
     use super::*;
-    use bridge::layout::Layout;
-    use bridge::state::Key;
+    use trident::layout::Layout;
+    use trident::state::Key;
 
     /// Select on the left, Jump in the middle, Approve on the right.
     fn swapped(agents: Vec<Agent>) -> Runtime<FakeHerdr, FakeKeys> {

@@ -1,5 +1,5 @@
 [package]
-name = "bridge"
+name = "trident"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -8,7 +8,7 @@ license.workspace = true
 # main.rs has no tests; a test build would only repeat its link
 # arguments, such as the delay-loads of build.rs.
 [[bin]]
-name = "bridge"
+name = "trident"
 path = "src/main.rs"
 test = false
 

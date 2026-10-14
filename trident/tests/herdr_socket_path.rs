@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use bridge::herdr::socket_path::{resolve, Platform};
+use trident::herdr::socket_path::{resolve, Platform};
 
 const TEMP: &str = "tmp";
 
@@ -123,7 +123,7 @@ fn without_any_base_the_temp_dir_is_used() {
 
 mod named_session {
     use super::*;
-    use bridge::herdr::socket_path::for_session;
+    use trident::herdr::socket_path::for_session;
 
     fn for_session_with(name: &str, vars: &[(&str, &str)]) -> PathBuf {
         for_session(name, env(vars), Platform::Windows, Path::new(TEMP))

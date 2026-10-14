@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["bridge", "firmware", "keypad", "protocol"]
+members = ["trident", "firmware", "keypad", "protocol"]
 # firmware builds only for thumbv6m-none-eabi; see the aliases in .cargo/config.toml.
-default-members = ["bridge", "keypad", "protocol"]
+default-members = ["trident", "keypad", "protocol"]
 
 [workspace.package]
 license = "MIT OR Apache-2.0"

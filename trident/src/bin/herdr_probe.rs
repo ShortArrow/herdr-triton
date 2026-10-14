@@ -17,10 +17,10 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use bridge::herdr::client::Client;
-use bridge::herdr::socket_path::{for_session, resolve, Platform};
-use bridge::herdr::wire::{is_supported, Request, Response};
-use bridge::{position, prompt_screen};
+use trident::herdr::client::Client;
+use trident::herdr::socket_path::{for_session, resolve, Platform};
+use trident::herdr::wire::{is_supported, Request, Response};
+use trident::{position, prompt_screen};
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();

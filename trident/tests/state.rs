@@ -1,7 +1,7 @@
-use bridge::state::{
+use protocol::{Led, Mode};
+use trident::state::{
     palette::*, Agent, AgentKeys, Cmd, Conn, Key, Msg, PromptKeys, State, Status, Wrap,
 };
-use protocol::{Led, Mode};
 
 fn agent(pane: &str, status: Status, seq: u64) -> Agent {
     Agent {

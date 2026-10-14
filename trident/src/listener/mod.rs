@@ -1,5 +1,5 @@
 //! One resident listener per user session (ADR 0012): what a hook or
-//! `bridge stop` can ask of it, and the names it is found by.
+//! `trident stop` can ask of it, and the names it is found by.
 
 #[cfg(windows)]
 mod windows;
@@ -27,7 +27,7 @@ impl Names {
     }
 }
 
-/// What a hook or `bridge stop` asks of the listener.
+/// What a hook or `trident stop` asks of the listener.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Signal {
     Wake,

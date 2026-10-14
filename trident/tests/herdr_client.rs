@@ -7,9 +7,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bridge::herdr::client::{CallError, Client, DEADLINE};
-use bridge::herdr::wire::{Request, Response};
 use interprocess::local_socket::{prelude::*, ListenerOptions, Stream};
+use trident::herdr::client::{CallError, Client, DEADLINE};
+use trident::herdr::wire::{Request, Response};
 
 fn unique_path() -> PathBuf {
     static N: AtomicUsize = AtomicUsize::new(0);

@@ -1,4 +1,4 @@
-//! The bridge's loop: joins herdr, the state core and the keypad, and
+//! trident's loop: joins herdr, the state core and the keypad, and
 //! decides when a listener is quiet, active, or done (ADR 0012).
 
 use std::collections::VecDeque;

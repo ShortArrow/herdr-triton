@@ -1,4 +1,4 @@
-//! What the herdr-triton firmware and bridge say to each other: the shared
+//! What the herdr-triton firmware and trident say to each other: the shared
 //! types, and in [`scpi`] their SCPI-style text (ADR 0009).
 
 #![no_std]

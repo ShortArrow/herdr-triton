@@ -1,6 +1,6 @@
 mod select_json {
-    use bridge::position::select_json;
-    use bridge::prompt_screen::parse;
+    use trident::position::select_json;
+    use trident::prompt_screen::parse;
 
     #[test]
     fn names_workspace_pane_and_highlighted_option() {
@@ -30,8 +30,8 @@ mod select_json {
 }
 
 mod select_id {
-    use bridge::position::select_id;
-    use bridge::prompt_screen::parse;
+    use trident::position::select_id;
+    use trident::prompt_screen::parse;
 
     #[test]
     fn is_the_highlighted_option_number() {
@@ -49,8 +49,8 @@ mod select_id {
 }
 
 mod pane {
-    use bridge::herdr::wire::Node;
-    use bridge::position::{pane_id, pane_json, NotActive};
+    use trident::herdr::wire::Node;
+    use trident::position::{pane_id, pane_json, NotActive};
 
     fn panes() -> Vec<Node> {
         vec![
@@ -92,8 +92,8 @@ mod pane {
 }
 
 mod workspace {
-    use bridge::herdr::wire::Node;
-    use bridge::position::{workspace_id, workspace_json};
+    use trident::herdr::wire::Node;
+    use trident::position::{workspace_id, workspace_json};
 
     fn workspaces() -> Vec<Node> {
         vec![

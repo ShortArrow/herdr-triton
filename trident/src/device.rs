@@ -96,7 +96,7 @@ impl<T: Read + Write> Device<T> {
     }
 }
 
-/// The replies the bridge asks for, owned.
+/// The replies trident asks for, owned.
 enum Answer {
     Protocol(u16),
     Key(Option<(Position, Edge)>),

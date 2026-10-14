@@ -12,7 +12,7 @@ use crate::state::Key;
 const PLUGIN_ID: &str = "shortarrow.herdr-triton";
 const FILE: &str = "config.toml";
 
-/// What the bridge reads from `config.toml`.
+/// What trident reads from `config.toml`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Config {
     pub layout: Layout,

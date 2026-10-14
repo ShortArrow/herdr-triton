@@ -9,15 +9,15 @@ platforms = ["windows"]
 
 # `herdr plugin install` runs this; after `herdr plugin link`, run it by hand.
 [[build]]
-command = ["cargo", "install", "--locked", "--path", "bridge", "--bin", "bridge", "--root", ".plugin"]
+command = ["cargo", "install", "--locked", "--path", "trident", "--bin", "trident", "--root", ".plugin"]
 
 # ADR 0012: a hook wakes the resident listener, or starts it detached and
 # exits at once.
 [[startup]]
 platforms = ["windows"]
-command = [".plugin/bin/bridge.exe", "hook"]
+command = [".plugin/bin/trident.exe", "hook"]
 
 [[events]]
 on = "pane.agent_status_changed"
 platforms = ["windows"]
-command = [".plugin/bin/bridge.exe", "hook"]
+command = [".plugin/bin/trident.exe", "hook"]

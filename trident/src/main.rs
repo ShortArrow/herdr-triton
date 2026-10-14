@@ -1,12 +1,12 @@
-//! The `bridge` commands (ADR 0012).
+//! The `trident` commands (ADR 0012).
 //!
 //! ```text
-//! bridge [--session <name>] run                keep going until the device or
-//!                                              herdr fails
-//! bridge [--session <name>] hook               wake the listener, or start one
-//! bridge [--session <name>] listen --port <p>  be the resident listener
-//! bridge stop                                  stop the listener
-//! bridge find-port                             print the keypad's port
+//! trident [--session <name>] run                keep going until the device or
+//!                                               herdr fails
+//! trident [--session <name>] hook               wake the listener, or start one
+//! trident [--session <name>] listen --port <p>  be the resident listener
+//! trident stop                                  stop the listener
+//! trident find-port                             print the keypad's port
 //! ```
 //!
 //! `hook` is what the herdr plugin runs; it logs to
@@ -24,14 +24,14 @@ use std::process::ExitCode;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use bridge::config::{self, Config};
-use bridge::device::{find_port, Device};
-use bridge::herdr::client::Client;
-use bridge::herdr::socket_path::{for_session, resolve, Platform};
-use bridge::listener::Signal;
-use bridge::runtime::{Exit, Mode, Runtime};
-use bridge::state::{AgentKeys, PromptKeys, Wrap};
 use protocol::scpi::PROTOCOL_VERSION;
+use trident::config::{self, Config};
+use trident::device::{find_port, Device};
+use trident::herdr::client::Client;
+use trident::herdr::socket_path::{for_session, resolve, Platform};
+use trident::listener::Signal;
+use trident::runtime::{Exit, Mode, Runtime};
+use trident::state::{AgentKeys, PromptKeys, Wrap};
 
 /// How long a query waits for the keypad's reply.
 const REPLY_TIMEOUT: Duration = Duration::from_millis(200);
@@ -51,7 +51,7 @@ fn main() -> ExitCode {
         ([cmd], None) if cmd == "find-port" => print_port(),
         _ => {
             eprintln!(
-                "usage: bridge [--session <name>] run|hook|listen --port <port>\n       bridge stop|find-port"
+                "usage: trident [--session <name>] run|hook|listen --port <port>\n       trident stop|find-port"
             );
             ExitCode::FAILURE
         }
@@ -94,7 +94,7 @@ fn in_process(socket: &Path, mode: Mode, log: &mut Log) -> ExitCode {
 /// Wakes the running listener, or starts one on the keypad's port.
 #[cfg(windows)]
 fn hook(session: Option<&str>, _socket: &Path) -> ExitCode {
-    use bridge::listener::{running, send, spawn_detached, Names, LISTENER};
+    use trident::listener::{running, send, spawn_detached, Names, LISTENER};
 
     let names = Names::new(LISTENER);
     if running(&names) {
@@ -137,10 +137,10 @@ fn hook(_session: Option<&str>, socket: &Path) -> ExitCode {
 }
 
 /// Holds the listener's mutex and serves the keypad until herdr goes or
-/// `bridge stop`; while the keypad is missing, looks for it every second.
+/// `trident stop`; while the keypad is missing, looks for it every second.
 #[cfg(windows)]
 fn listen(socket: &Path, mut port: String) -> ExitCode {
-    use bridge::listener::{Claim, Names, LISTENER};
+    use trident::listener::{Claim, Names, LISTENER};
 
     let mut log = Log::file(Path::new("bridge.log"));
     let claim = match Claim::take(&Names::new(LISTENER)) {
@@ -193,14 +193,14 @@ fn listen(socket: &Path, mut port: String) -> ExitCode {
 
 #[cfg(not(windows))]
 fn listen(_socket: &Path, _port: String) -> ExitCode {
-    eprintln!("bridge listen needs Windows; use bridge hook or bridge run");
+    eprintln!("trident listen needs Windows; use trident hook or trident run");
     ExitCode::FAILURE
 }
 
 /// Sets the listener's stop event; with no listener there is nothing to do.
 #[cfg(windows)]
 fn stop() -> ExitCode {
-    use bridge::listener::{send, Names, LISTENER};
+    use trident::listener::{send, Names, LISTENER};
 
     match send(&Names::new(LISTENER), Signal::Stop) {
         Ok(()) => ExitCode::SUCCESS,
@@ -209,7 +209,7 @@ fn stop() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("bridge stop: {e}");
+            eprintln!("trident stop: {e}");
             ExitCode::FAILURE
         }
     }
@@ -217,7 +217,7 @@ fn stop() -> ExitCode {
 
 #[cfg(not(windows))]
 fn stop() -> ExitCode {
-    eprintln!("bridge stop needs Windows");
+    eprintln!("trident stop needs Windows");
     ExitCode::FAILURE
 }
 
@@ -261,8 +261,8 @@ fn serve<H, K>(
     mut wait: impl FnMut(Duration) -> Option<Signal>,
 ) -> Ended
 where
-    H: bridge::runtime::Herdr,
-    K: bridge::runtime::Keys,
+    H: trident::runtime::Herdr,
+    K: trident::runtime::Keys,
 {
     let now = || clock.elapsed().as_millis() as u64;
     if let Err(exit) = runtime.start(now()) {
@@ -295,7 +295,7 @@ enum Search {
 #[cfg(windows)]
 const SEARCH: Duration = Duration::from_secs(1);
 
-/// Runs `bridge find-port` every [`SEARCH`] until it names a port, herdr's
+/// Runs `trident find-port` every [`SEARCH`] until it names a port, herdr's
 /// endpoint has been missing for five checks, or a stop arrives.
 #[cfg(windows)]
 fn search(herdr: &Client, mut wait: impl FnMut(Duration) -> Option<Signal>) -> Search {
@@ -318,7 +318,7 @@ fn search(herdr: &Client, mut wait: impl FnMut(Duration) -> Option<Signal>) -> S
 fn find_port_hidden() -> Option<String> {
     let exe = std::env::current_exe().ok()?;
     let output =
-        bridge::listener::run_hidden(std::process::Command::new(exe).arg("find-port")).ok()?;
+        trident::listener::run_hidden(std::process::Command::new(exe).arg("find-port")).ok()?;
     let port = String::from_utf8(output.stdout).ok()?;
     (output.status.success() && !port.trim().is_empty()).then(|| port.trim().to_owned())
 }
@@ -342,7 +342,7 @@ impl std::fmt::Display for KeypadError {
 }
 
 /// Opens `name` with DTR high and the input discarded, and checks that the
-/// keypad speaks this bridge's protocol.
+/// keypad speaks this program's protocol.
 fn open_keypad(name: &str) -> Result<Keypad, KeypadError> {
     let port = serialport::new(name, 115_200)
         .timeout(REPLY_TIMEOUT)

@@ -2,10 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use bridge::config::{load, parse, path, Config};
-use bridge::herdr::socket_path::Platform;
-use bridge::layout::Layout;
-use bridge::state::Key::*;
+use trident::config::{load, parse, path, Config};
+use trident::herdr::socket_path::Platform;
+use trident::layout::Layout;
+use trident::state::Key::*;
 
 mod locating {
     use super::*;

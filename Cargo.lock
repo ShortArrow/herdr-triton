@@ -42,20 +42,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
-name = "bridge"
-version = "0.1.0"
-dependencies = [
- "interprocess",
- "keypad",
- "protocol",
- "serde",
- "serde_json",
- "serialport",
- "toml",
- "windows-sys 0.59.0",
-]
-
-[[package]]
 name = "bytemuck"
 version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -875,6 +861,20 @@ name = "toml_writer"
 version = "1.1.2+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
+
+[[package]]
+name = "trident"
+version = "0.1.0"
+dependencies = [
+ "interprocess",
+ "keypad",
+ "protocol",
+ "serde",
+ "serde_json",
+ "serialport",
+ "toml",
+ "windows-sys 0.59.0",
+]
 
 [[package]]
 name = "unescaper"

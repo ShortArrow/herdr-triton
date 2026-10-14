@@ -10,8 +10,8 @@ fn main() {
             "advapi32.dll",
             "bcryptprimitives.dll",
         ] {
-            println!("cargo:rustc-link-arg-bin=bridge=/DELAYLOAD:{dll}");
+            println!("cargo:rustc-link-arg-bin=trident=/DELAYLOAD:{dll}");
         }
-        println!("cargo:rustc-link-arg-bin=bridge=delayimp.lib");
+        println!("cargo:rustc-link-arg-bin=trident=delayimp.lib");
     }
 }

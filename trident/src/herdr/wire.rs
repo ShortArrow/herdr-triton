@@ -1,4 +1,4 @@
-//! herdr's newline-delimited JSON: the requests the bridge sends and the
+//! herdr's newline-delimited JSON: the requests trident sends and the
 //! responses it reads (herdr `src/api/schema.rs`, `src/api/schema/response.rs`).
 
 use serde::Deserialize;
@@ -6,7 +6,7 @@ use serde_json::json;
 
 use crate::state::{Agent, Status};
 
-/// The requests the bridge sends.
+/// The requests trident sends.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Ping,
@@ -35,7 +35,7 @@ pub struct Node {
     pub focused: bool,
 }
 
-/// The responses the bridge understands.
+/// The responses trident understands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Response {
     Pong {
@@ -60,11 +60,11 @@ pub enum Response {
 pub enum WireError {
     /// Not JSON, or not a success or error envelope.
     Malformed(String),
-    /// A well-formed result of a type the bridge does not expect.
+    /// A well-formed result of a type trident does not expect.
     Unexpected(String),
 }
 
-/// The oldest herdr the bridge works with.
+/// The oldest herdr trident works with.
 pub const MIN_VERSION: (u64, u64, u64) = (0, 9, 1);
 
 /// Encodes `request` as one line, newline included.
@@ -90,7 +90,7 @@ pub fn encode_request(id: &str, request: &Request) -> String {
     line
 }
 
-/// One response line, decoded straight into the fields the bridge reads;
+/// One response line, decoded straight into the fields trident reads;
 /// everything else is skipped without building a JSON tree (ADR 0012).
 #[derive(Deserialize)]
 struct Envelope {
@@ -104,7 +104,7 @@ struct ErrorBody {
     message: String,
 }
 
-/// The union of the result fields the bridge understands, keyed by `type`.
+/// The union of the result fields trident understands, keyed by `type`.
 #[derive(Deserialize)]
 struct RawResult {
     #[serde(rename = "type")]

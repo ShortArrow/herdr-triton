@@ -1,4 +1,4 @@
-//! The bridge's state machine: herdr snapshots and key presses in,
+//! trident's state machine: herdr snapshots and key presses in,
 //! herdr requests and LED output out. No IO.
 
 use std::collections::BTreeMap;
@@ -84,7 +84,7 @@ pub enum Cmd {
     },
 }
 
-/// Colours the bridge shows.
+/// Colours trident shows.
 pub mod palette {
     use protocol::Rgb;
 
@@ -156,7 +156,7 @@ impl PromptAction {
     }
 }
 
-/// What the bridge is waiting for between messages.
+/// What trident is waiting for between messages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Pending {
     None,
@@ -174,7 +174,7 @@ enum Pending {
     },
 }
 
-/// The bridge's state. Invariants: a pane appears in `queue` at most once,
+/// trident's state. Invariants: a pane appears in `queue` at most once,
 /// every entry was blocked in the latest snapshot, and every `sent` pair
 /// matches a queue entry's pane and seq.
 pub struct State {
