@@ -6,6 +6,7 @@
 pub mod config;
 pub mod device;
 pub mod herdr;
+pub mod hold;
 pub mod layout;
 pub mod listener;
 pub mod position;
