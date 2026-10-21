@@ -222,8 +222,8 @@ Approve and Select refresh the snapshot right before deciding, so the decision u
 
 `trident raise` brings the window that shows herdr to the front and exits with success if that window is then in front:
 
-1. Take a herdr process whose command line is not `server`, a client
-2. Walk up from it through its parents to the first process that owns a visible top-level window without an owner window. In WezTerm that is `wezterm-gui`, since the client's pseudo console has no owner window
+1. Take each herdr client in turn: a `herdr.exe` whose parent is not `herdr.exe`. The server is started by a client, and a process snapshot does not carry command lines
+2. Walk up from the client, itself included, through its parents to the first process that owns a visible top-level window without an owner window; the first client that leads to one wins. In WezTerm that is `wezterm-gui`, since the client's pseudo console has no owner window
 3. If that window is minimised, restore it
 4. Attach to the input thread of the window in front with `AttachThreadInput`, call `SetForegroundWindow` and `BringWindowToTop`, then detach. Windows refuses `SetForegroundWindow` alone from a process that did not receive the last input
 
