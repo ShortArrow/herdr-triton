@@ -83,8 +83,10 @@ fn in_process(socket: &Path, mode: Mode, log: &mut Log) -> ExitCode {
     log.line(&format!("serving {name}"));
     let config = read_config(log);
     let clock = Instant::now();
-    let mut runtime = Runtime::new(Client::new(socket.into()), keypad, prompt_keys(), mode)
-        .with_layout(config.layout);
+    let mut runtime = raising(
+        Runtime::new(Client::new(socket.into()), keypad, prompt_keys(), mode)
+            .with_layout(config.layout),
+    );
     let ended = serve(&mut runtime, &clock, |d| {
         sleep(d);
         None
@@ -164,13 +166,15 @@ fn listen(socket: &Path, mut port: String) -> ExitCode {
         match open_keypad(&port) {
             Ok(keypad) => {
                 log.line(&format!("listen: serving {port}"));
-                let mut runtime = Runtime::new(
-                    Client::new(socket.into()),
-                    keypad,
-                    prompt_keys(),
-                    Mode::Listen,
-                )
-                .with_layout(config.layout);
+                let mut runtime = raising(
+                    Runtime::new(
+                        Client::new(socket.into()),
+                        keypad,
+                        prompt_keys(),
+                        Mode::Listen,
+                    )
+                    .with_layout(config.layout),
+                );
                 let ended = serve(&mut runtime, &clock, wait);
                 log.line(&format!("listen: {ended:?}"));
                 if ended != Ended::Exit(Exit::DeviceLost) {
@@ -339,6 +343,36 @@ fn find_port_hidden() -> Option<String> {
         trident::listener::run_hidden(std::process::Command::new(exe).arg("find-port")).ok()?;
     let port = String::from_utf8(output.stdout).ok()?;
     (output.status.success() && !port.trim().is_empty()).then(|| port.trim().to_owned())
+}
+
+/// Lets a held Jump raise herdr's window, where `trident raise` works
+/// (ADR 0015).
+fn raising<H, K>(runtime: Runtime<H, K>) -> Runtime<H, K>
+where
+    H: trident::runtime::Herdr,
+    K: trident::runtime::Keys,
+{
+    #[cfg(windows)]
+    return runtime.with_raise(Box::new(RaiseHidden));
+    #[cfg(not(windows))]
+    runtime
+}
+
+/// Raises herdr's window by running `trident raise`, so that only that
+/// short-lived process loads `user32.dll`.
+#[cfg(windows)]
+struct RaiseHidden;
+
+#[cfg(windows)]
+impl trident::runtime::Raise for RaiseHidden {
+    fn raise(&mut self) -> bool {
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| {
+                trident::listener::run_hidden(std::process::Command::new(exe).arg("raise")).ok()
+            })
+            .is_some_and(|output| output.status.success())
+    }
 }
 
 /// Why the keypad could not be served.
