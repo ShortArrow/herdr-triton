@@ -6,11 +6,13 @@ English | [日本語](ja/usage.md)
 
 | Key | Does | LED |
 |---|---|---|
-| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent | orange breathing while one agent waits, reddish orange while two or more wait, green breathing while agents are finished, white breathing otherwise |
+| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent. Hold it for half a second to also bring herdr's window to the front | orange breathing while one agent waits, reddish orange while two or more wait, green breathing while agents are finished, white breathing otherwise |
 | Approve (middle) | Confirm the highlighted option of the focused prompt | green when the focused pane can be confirmed |
 | Select (right) | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
 
 A pressed key flashes white when herdr took the request and red when it did not. Approve acts only on the prompt of the focused pane, and only while that pane is waiting for approval; Jump first.
+
+The keys work whichever window is in front, so a game or a browser can stay there while you approve. When an agent needs typing instead, hold Jump: the terminal that shows herdr comes to the front, restored if it was minimised, and Jump flashes white, or red if no window was found.
 
 | All three LEDs | Means |
 |---|---|
