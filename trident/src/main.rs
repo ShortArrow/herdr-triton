@@ -7,6 +7,7 @@
 //! trident [--session <name>] listen --port <p>  be the resident listener
 //! trident stop                                  stop the listener
 //! trident find-port                             print the keypad's port
+//! trident raise                                 bring herdr's window to the front
 //! ```
 //!
 //! `hook` is what the herdr plugin runs; it logs to
@@ -49,9 +50,10 @@ fn main() -> ExitCode {
         ([cmd], Some(port)) if cmd == "listen" => listen(&socket(), port),
         ([cmd], None) if cmd == "stop" => stop(),
         ([cmd], None) if cmd == "find-port" => print_port(),
+        ([cmd], None) if cmd == "raise" => raise(),
         _ => {
             eprintln!(
-                "usage: trident [--session <name>] run|hook|listen --port <port>\n       trident stop|find-port"
+                "usage: trident [--session <name>] run|hook|listen --port <port>\n       trident stop|find-port|raise"
             );
             ExitCode::FAILURE
         }
@@ -223,6 +225,22 @@ fn stop() -> ExitCode {
 
 /// Prints the keypad's port, for a listener that must not enumerate ports
 /// itself (ADR 0012).
+/// `trident raise`: succeeds when herdr's window is in front afterwards
+/// (ADR 0015).
+#[cfg(windows)]
+fn raise() -> ExitCode {
+    match trident::raise::raise_herdr() {
+        true => ExitCode::SUCCESS,
+        false => ExitCode::FAILURE,
+    }
+}
+
+#[cfg(not(windows))]
+fn raise() -> ExitCode {
+    eprintln!("trident raise needs Windows");
+    ExitCode::FAILURE
+}
+
 fn print_port() -> ExitCode {
     match keypad_port() {
         Some(port) => {

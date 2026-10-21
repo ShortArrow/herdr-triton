@@ -1,5 +1,6 @@
-//! Delay-loads the DLLs only serial port enumeration uses, so the resident
-//! listener, which never enumerates ports, does not load them (ADR 0012).
+//! Delay-loads the DLLs only serial port enumeration and `trident raise` use,
+//! so the resident listener, which does neither, does not load them
+//! (ADR 0012, ADR 0015).
 
 fn main() {
     let msvc = std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc");
@@ -9,6 +10,7 @@ fn main() {
             "cfgmgr32.dll",
             "advapi32.dll",
             "bcryptprimitives.dll",
+            "user32.dll",
         ] {
             println!("cargo:rustc-link-arg-bin=trident=/DELAYLOAD:{dll}");
         }

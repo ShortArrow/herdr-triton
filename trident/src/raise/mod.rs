@@ -2,6 +2,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub use windows::raise_herdr;
+
 /// One running process, as a process snapshot lists it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Process {
