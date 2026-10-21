@@ -227,8 +227,6 @@ fn stop() -> ExitCode {
     ExitCode::FAILURE
 }
 
-/// Prints the keypad's port, for a listener that must not enumerate ports
-/// itself (ADR 0012).
 /// `trident raise`: succeeds when herdr's window is in front afterwards
 /// (ADR 0015).
 #[cfg(windows)]
@@ -245,6 +243,8 @@ fn raise() -> ExitCode {
     ExitCode::FAILURE
 }
 
+/// Prints the keypad's port, for a listener that must not enumerate ports
+/// itself (ADR 0012).
 fn print_port() -> ExitCode {
     match keypad_port() {
         Some(port) => {
