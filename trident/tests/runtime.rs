@@ -603,3 +603,118 @@ mod layout {
         assert_eq!(rt.keys().shown.last(), Some(&[dark, white, dark]));
     }
 }
+
+mod holding {
+    use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+    use trident::layout::Layout;
+    use trident::runtime::Raise;
+    use trident::state::Key;
+
+    /// Counts its calls and answers `raised`.
+    struct FakeRaise {
+        calls: Rc<Cell<usize>>,
+        raised: bool,
+    }
+
+    impl Raise for FakeRaise {
+        fn raise(&mut self) -> bool {
+            self.calls.set(self.calls.get() + 1);
+            self.raised
+        }
+    }
+
+    fn with_raise(raised: bool, layout: Layout) -> (Runtime<FakeHerdr, FakeKeys>, Rc<Cell<usize>>) {
+        let calls = Rc::new(Cell::new(0));
+        let mut rt = Runtime::new(
+            FakeHerdr::new(vec![blocked("a", false)]),
+            FakeKeys::default(),
+            keys(),
+            RunMode::Run,
+        )
+        .with_layout(layout)
+        .with_raise(Box::new(FakeRaise {
+            calls: calls.clone(),
+            raised,
+        }));
+        rt.start(0).unwrap();
+        (rt, calls)
+    }
+
+    fn press(rt: &mut Runtime<FakeHerdr, FakeKeys>, pos: Position, edge: Edge, at: u64) {
+        rt.keys_mut().events.push_back((pos, edge));
+        rt.tick(at).unwrap();
+    }
+
+    #[test]
+    fn jump_held_for_500_ms_raises_once_and_flashes_white() {
+        let (mut rt, calls) = with_raise(true, Layout::default());
+        press(&mut rt, Position::Left, Edge::Down, 10);
+        rt.tick(509).unwrap();
+        assert_eq!(calls.get(), 0);
+        rt.tick(510).unwrap();
+        rt.tick(1_500).unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            rt.keys().flashes,
+            vec![
+                (Position::Left, palette::WHITE),
+                (Position::Left, palette::WHITE)
+            ],
+            "the jump, then the raise"
+        );
+    }
+
+    #[test]
+    fn a_window_that_could_not_be_raised_flashes_red() {
+        let (mut rt, _) = with_raise(false, Layout::default());
+        press(&mut rt, Position::Left, Edge::Down, 10);
+        rt.tick(510).unwrap();
+        assert_eq!(
+            rt.keys().flashes.last(),
+            Some(&(Position::Left, palette::RED))
+        );
+    }
+
+    #[test]
+    fn jump_released_before_500_ms_does_not_raise() {
+        let (mut rt, calls) = with_raise(true, Layout::default());
+        press(&mut rt, Position::Left, Edge::Down, 10);
+        press(&mut rt, Position::Left, Edge::Up, 300);
+        rt.tick(1_000).unwrap();
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn holding_another_key_does_not_raise() {
+        let (mut rt, calls) = with_raise(true, Layout::default());
+        press(&mut rt, Position::Middle, Edge::Down, 10);
+        rt.tick(1_000).unwrap();
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn jump_moved_by_the_layout_raises_where_it_sits() {
+        let layout = Layout::new([Key::Select, Key::Jump, Key::Approve]).unwrap();
+        let (mut rt, calls) = with_raise(true, layout);
+        press(&mut rt, Position::Left, Edge::Down, 10);
+        rt.tick(1_000).unwrap();
+        assert_eq!(calls.get(), 0, "Select sits on the left");
+        press(&mut rt, Position::Middle, Edge::Down, 1_010);
+        rt.tick(1_510).unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            rt.keys().flashes.last(),
+            Some(&(Position::Middle, palette::WHITE))
+        );
+    }
+
+    #[test]
+    fn without_a_raise_a_held_jump_only_jumps() {
+        let mut rt = started(vec![blocked("a", false)], RunMode::Run);
+        press(&mut rt, Position::Left, Edge::Down, 10);
+        rt.tick(1_000).unwrap();
+        assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::WHITE)]);
+    }
+}

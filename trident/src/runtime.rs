@@ -8,8 +8,9 @@ use protocol::{Edge, Led, Position, Rgb};
 
 use crate::herdr::client::{CallError, Client};
 use crate::herdr::wire::{is_supported, Request, Response};
+use crate::hold::Hold;
 use crate::layout::Layout;
-use crate::state::{AgentKeys, Cmd, Conn, Msg, State};
+use crate::state::{palette, AgentKeys, Cmd, Conn, Key, Msg, State};
 
 /// Milliseconds on a monotonic clock.
 pub type Millis = u64;
@@ -40,6 +41,12 @@ pub trait Keys {
     fn next_key(&mut self) -> io::Result<Option<(Position, Edge)>>;
     fn show(&mut self, leds: [Led; 3]) -> io::Result<()>;
     fn flash(&mut self, pos: Position, rgb: Rgb) -> io::Result<()>;
+}
+
+/// Brings the window that shows herdr to the front (ADR 0015).
+pub trait Raise {
+    /// Whether that window is now in front.
+    fn raise(&mut self) -> bool;
 }
 
 /// `Run` stays active and keeps going; `Listen` goes quiet while nothing
@@ -78,6 +85,8 @@ pub struct Runtime<H, K> {
     shown: Option<([Led; 3], Millis)>,
     idle_since: Option<Millis>,
     gone_since: Option<Millis>,
+    raise: Option<Box<dyn Raise>>,
+    hold: Hold,
 }
 
 impl<H: Herdr, K: Keys> Runtime<H, K> {
@@ -94,12 +103,21 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
             shown: None,
             idle_since: None,
             gone_since: None,
+            raise: None,
+            hold: Hold::default(),
         }
     }
 
     /// Places the keys as `layout` says instead of ADR 0006's order.
     pub fn with_layout(mut self, layout: Layout) -> Self {
         self.layout = layout;
+        self
+    }
+
+    /// Raises herdr's window when Jump is held; without it, a held Jump
+    /// only jumps.
+    pub fn with_raise(mut self, raise: Box<dyn Raise>) -> Self {
+        self.raise = Some(raise);
         self
     }
 
@@ -144,15 +162,27 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
         }
     }
 
-    /// One pass: key events, the periodic poll, the LEDs, and the phase and
-    /// exit rules. A key going down while quiet first makes the loop active.
+    /// One pass: key events, a held Jump, the periodic poll, the LEDs, and
+    /// the phase and exit rules. A key going down while quiet first makes the
+    /// loop active.
     pub fn tick(&mut self, now: Millis) -> Result<(), Exit> {
         while let Some((pos, edge)) = self.keys.next_key().map_err(|_| Exit::DeviceLost)? {
-            if edge == Edge::Down {
-                self.wake(now)?;
-                let cmds = self.state.update(Msg::KeyDown(self.layout.key_at(pos)));
-                self.run(cmds, now)?;
+            let key = self.layout.key_at(pos);
+            match edge {
+                Edge::Down => {
+                    if key == Key::Jump {
+                        self.hold.down(now);
+                    }
+                    self.wake(now)?;
+                    let cmds = self.state.update(Msg::KeyDown(key));
+                    self.run(cmds, now)?;
+                }
+                Edge::Up if key == Key::Jump => self.hold.up(),
+                Edge::Up => {}
             }
+        }
+        if self.hold.due(now) {
+            self.raise_herdr(now)?;
         }
         let due = self.last_poll.is_none_or(|t| now.saturating_sub(t) >= POLL);
         if self.phase == Phase::Active && due && self.state.conn() != Conn::Incompatible {
@@ -167,6 +197,26 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
             self.shown = Some((frame, now));
         }
         self.watch(now)
+    }
+
+    /// Raises herdr's window and flashes Jump white if it came to the front,
+    /// red if it did not (ADR 0015).
+    fn raise_herdr(&mut self, now: Millis) -> Result<(), Exit> {
+        let Some(raise) = self.raise.as_mut() else {
+            return Ok(());
+        };
+        let rgb = if raise.raise() {
+            palette::WHITE
+        } else {
+            palette::RED
+        };
+        self.run(
+            vec![Cmd::Flash {
+                key: Key::Jump,
+                rgb,
+            }],
+            now,
+        )
     }
 
     /// Runs commands, and those they lead to, in order.
