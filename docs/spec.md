@@ -131,7 +131,7 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 
 | Default position | Name | Action |
 |---|---|---|
-| left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between every agent (ADR 0011) |
+| left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between every agent (ADR 0011). Held for 500 ms, it also brings herdr's window to the front (ADR 0015) |
 | middle | Approve | Confirm the highlighted option of the focused prompt |
 | right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first |
 
@@ -212,10 +212,22 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` a
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
 | any | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys"; otherwise error flash |
 | any | a request fails | error flash, refresh. A failed confirmation is removed from `sent` |
+| any | Jump has stayed down for 500 ms | `trident raise`; success flash if it raised a window, otherwise error flash. Once per press |
 
 Jump does not reorder `queue`. When `queue` has one entry and it is focused, Jump focuses it again.
 
 Approve and Select refresh the snapshot right before deciding, so the decision uses state at most one request old. `sent` stops a second press from confirming the same prompt again, or a prompt that replaced it, before herdr has reported a state change. It also stops Select, so that an arrow key never lands in an agent's input box after the prompt has closed.
+
+### Raising herdr's window
+
+`trident raise` brings the window that shows herdr to the front and exits with success if that window is then in front:
+
+1. Take a herdr process whose command line is not `server`, a client
+2. Walk up from it through its parents to the first process that owns a visible top-level window without an owner window. In WezTerm that is `wezterm-gui`, since the client's pseudo console has no owner window
+3. If that window is minimised, restore it
+4. Attach to the input thread of the window in front with `AttachThreadInput`, call `SetForegroundWindow` and `BringWindowToTop`, then detach. Windows refuses `SetForegroundWindow` alone from a process that did not receive the last input
+
+The listener starts it with `CREATE_NO_WINDOW`, as it starts `trident find-port`, so that only this short-lived process loads `user32.dll`.
 
 ### Prompt keys
 
@@ -337,7 +349,7 @@ The `protocol` crate holds the typed commands and replies and their text form, u
 |---|---|---|
 | `rp2040-hal` | 0.11 | `ws2812-pio` 0.9 does not build against 0.12 |
 | `usb-device` | 0.3 | Required by `drooling` and `usbd-serial` 0.2 |
-| `windows-sys` | 0.59 | Named mutex and events, `WaitNamedPipeW`, handle inheritance and process creation flags |
+| `windows-sys` | 0.59 | Named mutex and events, `WaitNamedPipeW`, handle inheritance, process creation flags, and the process snapshot and window calls of `trident raise` |
 | `toml` | 0.9 | Reads `config.toml`, with only its parser and serde support |
 | `serialport` | 4 | Lists ports with their USB serial numbers on Windows, Linux and macOS |
 
@@ -345,7 +357,8 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 
 ## Unspecified
 
-- Long-press actions
+- Long-press actions other than Jump's
+- Which window `trident raise` brings forward when several herdr clients run, or when the terminal process has several windows
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
 - Clearing `sent` when herdr never reports a state change after an approval
