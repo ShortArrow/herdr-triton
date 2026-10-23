@@ -114,6 +114,27 @@ herdr は自分の pane の中で `HERDR_SOCKET_PATH` を設定する。
 
 `events.subscribe` は使わない（ADR 0004）。
 
+### agents ペインの並び順
+
+Jump は herdr の agents ペインの一覧の順に従う（ADR 0018）。並び順のモードは2つある。
+
+| モード | 順序 |
+|---|---|
+| `grouped` | `agent.list` の順 |
+| `priority` | `agent_status` の順（`blocked`、`done`、`working`、`idle`、`unknown`）、次に `state_change_seq` の大きい順。それでも並びが決まらなければ `agent.list` の順 |
+
+モードを報告する API は無いので、trident は Jump が押されるたびに、次のうち最初にモードを示すものから読む。
+
+1. クライアントの設定（JSON ファイル `<state>/client-shell/local-<hash>.json`）の `agent_panel_sort`
+2. herdr の `<config>/config.toml` の `[ui]` テーブルの `agent_panel_sort`
+3. `grouped`
+
+`"spaces"` と `"workspaces"` は `grouped` を、`"priority"` は `priority` を示す。
+ファイルが無い、解析できない、またはほかの値を持つときは、何も示さない。
+`<hash>` はクライアントソケットのパスを UTF-8 にしたものの FNV-1a 64 ハッシュで、小文字の16進数16桁で書く。
+クライアントソケットは API ソケットと同じディレクトリにあり、名前は API ソケットの拡張子を除いた名前に `-client.sock` を付けたもの。たとえば `<config>/herdr.sock` なら `<config>/herdr-client.sock`。
+`<state>` は、`$XDG_STATE_HOME` があれば `$XDG_STATE_HOME/herdr`、無ければ Windows で `%LOCALAPPDATA%\herdr`、それ以外で `~/.local/state/herdr`。
+
 ## 配置
 
 `trident` はデバイスを挿したマシンで動かし、そこから herdr のソケットに届く必要がある。
@@ -154,7 +175,7 @@ firmware は書き込む前に赤と緑を入れ替える。
 
 | 既定の位置 | 名前 | 動作 |
 |---|---|---|
-| 左 | Jump | 承認待ちの pane を巡回する。承認待ちが無ければ作業を終えたエージェントを、それも無ければ全エージェントを巡回する（ADR 0011）。500 ms 押し続けると、herdr のウィンドウを前面にも出す（ADR 0015） |
+| 左 | Jump | 承認待ちの pane を巡回する。承認待ちが無ければ作業を終えたエージェントを、それも無ければ全エージェントを巡回する（ADR 0011）。どれも herdr の agents ペインの順に巡回する（ADR 0018）。500 ms 押し続けると、herdr のウィンドウを前面にも出す（ADR 0015） |
 | 中 | Approve | フォーカス中のプロンプトで、ハイライトされている選択肢を確定する |
 | 右 | Select | フォーカス中のプロンプトで、ハイライトを次の選択肢へ動かす。最後の次は最初。`select_hold = "up"` なら、500 ms 押し続けると代わりにハイライトを上へ動かす（ADR 0017） |
 
@@ -194,11 +215,11 @@ select_hold = "none"
 |---|---|---|
 | `conn` | `Disconnected \| Incompatible \| Connected` | herdr に届くか |
 | `device` | `Absent \| Present` | シリアルポートを開いているか |
-| `queue` | `(pane_id, agent, state_change_seq)` の列 | `blocked` のエージェント。`trident` が最初に blocked を観測した順 |
+| `queue` | `(pane_id, agent, state_change_seq)` の集合 | `blocked` のエージェント |
 | `focused` | `pane_id` または無し | herdr が `focused` と返すエージェントの pane |
 | `sent` | `(pane_id, state_change_seq)` の集合 | 確定キーを送ったあと、まだ状態変化が報告されていないもの |
 | `done` | `pane_id` の列 | `done`（作業を終え、まだ見られていない）のエージェント。`agent.list` の順 |
-| `agents` | `pane_id` の列 | 全エージェント。`agent.list` の順 |
+| `agents` | `(pane_id, agent_status, state_change_seq)` の列 | 全エージェント。`agent.list` の順 |
 | `lapsed` | `(pane_id, agent)` の集合 | pane が `idle` になったために `queue` から外れた要素。その pane が `idle` の間だけ残す（ADR 0016） |
 
 不変条件:
@@ -234,8 +255,8 @@ select_hold = "none"
 | `queue` にあり、`idle` になり、`(pane_id, seq)` が `sent` に無い | 除去して `lapsed` に加える |
 | `queue` にあり、スナップショットに無いか `blocked` でない（上の行以外） | 除去する |
 | `lapsed` にあり、スナップショットに無いか `idle` でない | 除去する |
-| `queue` にあり、`blocked` のままで `state_change_seq` が変わった | 位置はそのままで `agent` と `state_change_seq` を更新する |
-| スナップショットで `blocked`、`queue` に無い | 末尾に追加する。接続後の最初のスナップショットでは `agent.list` の順に追加する |
+| `queue` にあり、`blocked` のままで `state_change_seq` が変わった | `agent` と `state_change_seq` を更新する |
+| スナップショットで `blocked`、`queue` に無い | 追加する |
 | 任意 | `focused` を `focused: true` のエージェントにする。無ければ無し |
 | 任意 | `done` を `done` のエージェントに、`agents` を全エージェントにする |
 | 任意 | `queue` と一致しなくなった `sent` の要素を捨てる |
@@ -248,8 +269,8 @@ select_hold = "none"
 | Given | When | Then |
 |---|---|---|
 | `conn ≠ Connected` | 任意のキー | エラー点滅 |
-| `queue` が空でなく `focused ∉ queue` | Jump | 先頭へ `agent.focus`、再取得 |
-| `queue` が空でなく `focused ∈ queue` | Jump | `focused` の次（末尾なら先頭）へ `agent.focus`、再取得 |
+| `queue` が空でなく `focused ∉ queue` | Jump | agents ペインの順で `queue` の最初の要素へ `agent.focus`、再取得 |
+| `queue` が空でなく `focused ∈ queue` | Jump | その順で `focused` の次（末尾なら先頭）へ `agent.focus`、再取得 |
 | `queue` が空で `done` が空でない | Jump | 上の2行と同じことを `done` に対して行う |
 | `queue` も `done` も空 | Jump | 最初の2行と同じことを `agents` に対して行う。エージェントが1つも無ければエラー点滅 |
 | 任意 | Approve | 再取得する。`approvable(focused)` なら確定キーを `agent.send_keys` で送り、`(focused, seq)` を `sent` に加える。そうでなければエラー点滅 |
@@ -259,7 +280,6 @@ select_hold = "none"
 | `select_hold = "up"` | Select が押されたまま 500 ms たつ | 短い Select と同じだが、次の選択肢へ動かす代わりに戻りキーを1回送る。1回の押下につき1回で、離したときは何もしない |
 | 任意 | Jump が押されたまま 500 ms たつ | `trident raise`。ウィンドウを前面に出せたら成功点滅、出せなければエラー点滅。1回の押下につき1回 |
 
-Jump は `queue` の順序を変えない。
 `queue` が1件でそれにフォーカスしていれば、Jump は同じ pane に再度フォーカスする。
 
 Approve と Select は判断の直前にスナップショットを取り直すので、判断に使う状態はリクエスト1回ぶんより古くならない。
@@ -431,6 +451,7 @@ USB CDC-ACM 上で、SCPI 風のテキストを1行1コマンドでやりとり�
 
 - herdr のクライアントがローカルのものと並べて表示する、他の機械のエージェント（`herdr machine`）。`trident` が読むのはローカルのサーバーの API だけで、どちらのサーバーの API も、クライアントがどの機械にフォーカスしているかを示さない
 - Jump と Select 以外の長押しの割り当て
+- `agent.view.set` で設定したビューが agents ペインを並べ替えているときの Jump の順、およびローカル以外のクライアントが表示する順
 - herdr のクライアントが複数あるとき、または端末のプロセスがウィンドウを複数持つときに、`trident raise` がどのウィンドウを出すか
 - `done` の表示
 - Approve が効くまでに、pane が承認可能な状態で留まるべき最短時間。

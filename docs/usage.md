@@ -6,7 +6,7 @@ English | [日本語](ja/usage.md)
 
 | Key | Does | LED |
 |---|---|---|
-| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent. Hold it for half a second to also bring herdr's window to the front | orange breathing while one agent waits, reddish orange while two or more wait, green breathing while agents are finished, white breathing otherwise |
+| Jump (left) | Focus the next waiting agent; with none, the next finished one; with none of those either, the next agent. "Next" follows the list in herdr's agents pane, whether it is sorted `grouped` or `priority`. Hold it for half a second to also bring herdr's window to the front | orange breathing while one agent waits, reddish orange while two or more wait, green breathing while agents are finished, white breathing otherwise |
 | Approve (middle) | Confirm the highlighted option of the focused prompt | green when the focused pane can be confirmed |
 | Select (right) | Move the highlight to the next option, wrapping to the first | blue when the focused pane can be confirmed |
 

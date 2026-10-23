@@ -93,6 +93,23 @@ herdr sets `HERDR_SOCKET_PATH` inside its own panes, so a `trident` started from
 
 `trident` does not use `events.subscribe`. See ADR 0004.
 
+### The agents pane's order
+
+Jump follows the order of the list in herdr's agents pane (ADR 0018), in one of two modes:
+
+| Mode | Order |
+|---|---|
+| `grouped` | `agent.list` order |
+| `priority` | By `agent_status`: `blocked`, `done`, `working`, `idle`, `unknown`; then by `state_change_seq`, highest first; ties keep `agent.list` order |
+
+No API reports the mode, so `trident` reads it each time Jump goes down, from the first of these that names one:
+
+1. `agent_panel_sort` in the client's preferences, the JSON file `<state>/client-shell/local-<hash>.json`
+2. `agent_panel_sort` in the `[ui]` table of herdr's `<config>/config.toml`
+3. `grouped`
+
+`"spaces"` and `"workspaces"` name `grouped`, and `"priority"` names `priority`. A file that is missing, does not parse, or holds another value names none. `<hash>` is the FNV-1a 64 hash of the client socket's path, as UTF-8, in 16 lowercase hexadecimal digits. The client socket is the API socket's sibling whose name is the API socket's stem followed by `-client.sock`, so `<config>/herdr.sock` has `<config>/herdr-client.sock`. `<state>` is `$XDG_STATE_HOME/herdr` when set, otherwise `%LOCALAPPDATA%\herdr` on Windows and `~/.local/state/herdr` elsewhere.
+
 ## Deployment
 
 `trident` runs on the machine the device is plugged into, and must reach herdr's socket from there.
@@ -131,7 +148,7 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 
 | Default position | Name | Action |
 |---|---|---|
-| left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between every agent (ADR 0011). Held for 500 ms, it also brings herdr's window to the front (ADR 0015) |
+| left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between every agent (ADR 0011), each in the order of herdr's agents pane (ADR 0018). Held for 500 ms, it also brings herdr's window to the front (ADR 0015) |
 | middle | Approve | Confirm the highlighted option of the focused prompt |
 | right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first. With `select_hold = "up"`, holding it for 500 ms moves the highlight up instead (ADR 0017) |
 
@@ -167,11 +184,11 @@ select_hold = "none"
 |---|---|---|
 | `conn` | `Disconnected \| Incompatible \| Connected` | Reachability of herdr |
 | `device` | `Absent \| Present` | Whether the serial port is open |
-| `queue` | sequence of `(pane_id, agent, state_change_seq)` | Agents in `blocked`, in the order `trident` first saw them blocked |
+| `queue` | set of `(pane_id, agent, state_change_seq)` | Agents in `blocked` |
 | `focused` | `pane_id` or none | The agent pane herdr reports as `focused` |
 | `sent` | set of `(pane_id, state_change_seq)` | Confirmations sent and not yet followed by a state change |
 | `done` | sequence of `pane_id` | Agents in `done`, finished and not yet seen, in `agent.list` order |
-| `agents` | sequence of `pane_id` | Every agent, in `agent.list` order |
+| `agents` | sequence of `(pane_id, agent_status, state_change_seq)` | Every agent, in `agent.list` order |
 | `lapsed` | set of `(pane_id, agent)` | Entries that left `queue` because their pane turned `idle`, kept while it stays `idle` (ADR 0016) |
 
 Invariants:
@@ -200,8 +217,8 @@ Key events and snapshots are handled one at a time in a single loop. A key press
 | Entry in `queue`, now `idle`, `(pane_id, seq)` not in `sent` | Remove it and add it to `lapsed` |
 | Entry in `queue`, absent from the snapshot or not `blocked`, otherwise | Remove it |
 | Entry in `lapsed`, absent from the snapshot or not `idle` | Remove it |
-| Entry in `queue`, still `blocked`, `state_change_seq` changed | Keep its position, update `agent` and `state_change_seq` |
-| `blocked` in the snapshot, not in `queue` | Append it. On the first snapshot after connecting, append in `agent.list` order |
+| Entry in `queue`, still `blocked`, `state_change_seq` changed | Update `agent` and `state_change_seq` |
+| `blocked` in the snapshot, not in `queue` | Add it |
 | any | `focused` = the agent with `focused: true`, or none |
 | any | `done` = the agents in `done`; `agents` = every agent |
 | any | Drop from `sent` every entry that no longer matches `queue` |
@@ -213,8 +230,8 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused`, 
 | Given | When | Then |
 |---|---|---|
 | `conn ≠ Connected` | any key | error flash |
-| `queue` not empty, `focused ∉ queue` | Jump | `agent.focus` the head, refresh |
-| `queue` not empty, `focused ∈ queue` | Jump | `agent.focus` the entry after `focused`, cycling, refresh |
+| `queue` not empty, `focused ∉ queue` | Jump | `agent.focus` the first entry of `queue` in the agents pane's order, refresh |
+| `queue` not empty, `focused ∈ queue` | Jump | `agent.focus` the entry after `focused` in that order, cycling, refresh |
 | `queue` empty, `done` not empty | Jump | as the two rows above, over `done` |
 | `queue` and `done` empty | Jump | as the first two rows, over `agents`; error flash if there are none |
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
@@ -224,7 +241,7 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused`, 
 | `select_hold = "up"` | Select has stayed down for 500 ms | As the short Select, sending the back keys once instead of moving to the next option. Once per press; its release does nothing |
 | any | Jump has stayed down for 500 ms | `trident raise`; success flash if it raised a window, otherwise error flash. Once per press |
 
-Jump does not reorder `queue`. When `queue` has one entry and it is focused, Jump focuses it again.
+When `queue` has one entry and it is focused, Jump focuses it again.
 
 Approve and Select refresh the snapshot right before deciding, so the decision uses state at most one request old. `sent` stops a second press from confirming the same prompt again, or a prompt that replaced it, before herdr has reported a state change. It also stops Select, so that an arrow key never lands in an agent's input box after the prompt has closed.
 
@@ -371,6 +388,7 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 
 - Agents on other machines that a herdr client shows alongside local ones (`herdr machine`). `trident` reads only the local server's API, and neither server's API says which machine the client has in focus
 - Long-press actions other than Jump's and Select's
+- Jump's order while a view set with `agent.view.set` reorders the agents pane, and the order a client other than the local one shows
 - Which window `trident raise` brings forward when several herdr clients run, or when the terminal process has several windows
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared
