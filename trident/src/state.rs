@@ -116,6 +116,8 @@ pub struct PromptKeys {
     pub confirm: Vec<String>,
     /// Moves the highlight to the next option (Select).
     pub select: Vec<String>,
+    /// Moves the highlight to the option above.
+    pub back: Vec<String>,
     pub wrap: Wrap,
 }
 
@@ -125,8 +127,8 @@ pub enum Wrap {
     /// The select keys wrap on their own.
     Native,
     /// The list stops at its last option: read the screen, and from the
-    /// last option send `back` once per option above it (ADR 0010).
-    ByScreen { back: Vec<String> },
+    /// last option send the back keys once per option above it (ADR 0010).
+    ByScreen,
 }
 
 /// Prompt keys per herdr agent id.
@@ -489,11 +491,12 @@ impl State {
             (last >= 2 && p.highlighted == Some(last)).then_some(last)
         });
         let keys = match (at_last, &keys.wrap) {
-            (Some(n), Wrap::ByScreen { back }) => back
+            (Some(n), Wrap::ByScreen) => keys
+                .back
                 .iter()
                 .cloned()
                 .cycle()
-                .take(back.len() * (n - 1) as usize)
+                .take(keys.back.len() * (n - 1) as usize)
                 .collect(),
             _ => keys.select,
         };

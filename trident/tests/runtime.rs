@@ -115,16 +115,12 @@ fn keys() -> AgentKeys {
     let keys = |wrap| PromptKeys {
         confirm: vec!["enter".into()],
         select: vec!["down".into()],
+        back: vec!["up".into()],
         wrap,
     };
     [
         ("claude".to_string(), keys(Wrap::Native)),
-        (
-            "stopper".to_string(),
-            keys(Wrap::ByScreen {
-                back: vec!["up".into()],
-            }),
-        ),
+        ("stopper".to_string(), keys(Wrap::ByScreen)),
     ]
     .into()
 }

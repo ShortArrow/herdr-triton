@@ -439,19 +439,15 @@ fn state_dir() -> PathBuf {
 /// The built-in prompt keys (specification, "Prompt keys"): Codex's list
 /// wraps, Claude Code's stops at its last option (ADR 0010).
 fn prompt_keys() -> AgentKeys {
-    let keys = |wrap| PromptKeys {
+    let keys = |back: &[&str], wrap| PromptKeys {
         confirm: vec!["enter".into()],
         select: vec!["down".into()],
+        back: back.iter().map(|k| k.to_string()).collect(),
         wrap,
     };
     [
-        (
-            "claude".to_string(),
-            keys(Wrap::ByScreen {
-                back: vec!["up".into()],
-            }),
-        ),
-        ("codex".to_string(), keys(Wrap::Native)),
+        ("claude".to_string(), keys(&["up"], Wrap::ByScreen)),
+        ("codex".to_string(), keys(&[], Wrap::Native)),
     ]
     .into()
 }

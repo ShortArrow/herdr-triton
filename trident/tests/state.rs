@@ -26,6 +26,7 @@ fn prompt_keys(confirm: &str, select: &str) -> PromptKeys {
     PromptKeys {
         confirm: vec![confirm.into()],
         select: vec![select.into()],
+        back: vec!["up".into()],
         wrap: Wrap::Native,
     }
 }
@@ -37,9 +38,7 @@ fn keys() -> AgentKeys {
         (
             "stopper".to_string(),
             PromptKeys {
-                wrap: Wrap::ByScreen {
-                    back: vec!["up".into()],
-                },
+                wrap: Wrap::ByScreen,
                 ..prompt_keys("enter", "down")
             },
         ),
