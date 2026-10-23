@@ -126,7 +126,7 @@ Jump は herdr の agents ペインの一覧の順に従う（ADR 0018）。並�
 モードを報告する API は無いので、trident は Jump が押されるたびに、次のうち最初にモードを示すものから読む。
 
 1. クライアントの設定（JSON ファイル `<state>/client-shell/local-<hash>.json`）の `agent_panel_sort`
-2. herdr の `<config>/config.toml` の `[ui]` テーブルの `agent_panel_sort`
+2. herdr の `config.toml`（`HERDR_CONFIG_PATH` があればそこ、無ければ `<config>/config.toml`）の `[ui]` テーブルの `agent_panel_sort`
 3. `grouped`
 
 `"spaces"` と `"workspaces"` は `grouped` を、`"priority"` は `priority` を示す。

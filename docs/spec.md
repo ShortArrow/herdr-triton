@@ -105,7 +105,7 @@ Jump follows the order of the list in herdr's agents pane (ADR 0018), in one of 
 No API reports the mode, so `trident` reads it each time Jump goes down, from the first of these that names one:
 
 1. `agent_panel_sort` in the client's preferences, the JSON file `<state>/client-shell/local-<hash>.json`
-2. `agent_panel_sort` in the `[ui]` table of herdr's `<config>/config.toml`
+2. `agent_panel_sort` in the `[ui]` table of herdr's `config.toml`: `HERDR_CONFIG_PATH` when set, otherwise `<config>/config.toml`
 3. `grouped`
 
 `"spaces"` and `"workspaces"` name `grouped`, and `"priority"` names `priority`. A file that is missing, does not parse, or holds another value names none. `<hash>` is the FNV-1a 64 hash of the client socket's path, as UTF-8, in 16 lowercase hexadecimal digits. The client socket is the API socket's sibling whose name is the API socket's stem followed by `-client.sock`, so `<config>/herdr.sock` has `<config>/herdr-client.sock`. `<state>` is `$XDG_STATE_HOME/herdr` when set, otherwise `%LOCALAPPDATA%\herdr` on Windows and `~/.local/state/herdr` elsewhere.
