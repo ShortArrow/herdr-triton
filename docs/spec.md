@@ -170,14 +170,18 @@ layout = ["jump", "approve", "select"]
 | `sent` | set of `(pane_id, state_change_seq)` | Confirmations sent and not yet followed by a state change |
 | `done` | sequence of `pane_id` | Agents in `done`, finished and not yet seen, in `agent.list` order |
 | `agents` | sequence of `pane_id` | Every agent, in `agent.list` order |
+| `lapsed` | set of `(pane_id, agent)` | Entries that left `queue` because their pane turned `idle`, kept while it stays `idle` (ADR 0016) |
 
 Invariants:
 
 - A `pane_id` appears in `queue` at most once
 - Every entry in `queue` was `blocked` in the latest snapshot
 - Every entry in `sent` matches an entry of `queue` in both `pane_id` and `state_change_seq`
+- Every entry in `lapsed` was `idle` in the latest snapshot and is not in `queue`
 
 `approvable(p)` holds when `p` is in `queue`, `p` is `focused`, the entry's `agent` has prompt keys configured, and `(p, seq)` is not in `sent`.
+
+`lapsed_focus(p)` holds when `p` is in `lapsed`, `p` is `focused`, and the entry's `agent` has prompt keys configured.
 
 ## Behaviour
 
@@ -191,14 +195,16 @@ Key events and snapshots are handled one at a time in a single loop. A key press
 
 | Given | Then |
 |---|---|
-| Entry in `queue`, absent from the snapshot or not `blocked` | Remove it |
+| Entry in `queue`, now `idle`, `(pane_id, seq)` not in `sent` | Remove it and add it to `lapsed` |
+| Entry in `queue`, absent from the snapshot or not `blocked`, otherwise | Remove it |
+| Entry in `lapsed`, absent from the snapshot or not `idle` | Remove it |
 | Entry in `queue`, still `blocked`, `state_change_seq` changed | Keep its position, update `agent` and `state_change_seq` |
 | `blocked` in the snapshot, not in `queue` | Append it. On the first snapshot after connecting, append in `agent.list` order |
 | any | `focused` = the agent with `focused: true`, or none |
 | any | `done` = the agents in `done`; `agents` = every agent |
 | any | Drop from `sent` every entry that no longer matches `queue` |
 
-A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` and `sent`. `trident` keeps retrying.
+A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused`, `sent` and `lapsed`. `trident` keeps retrying.
 
 ### Keys
 
@@ -210,7 +216,7 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused` a
 | `queue` empty, `done` not empty | Jump | as the two rows above, over `done` |
 | `queue` and `done` empty | Jump | as the first two rows, over `agents`; error flash if there are none |
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
-| any | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys"; otherwise error flash |
+| any | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys". Else if `lapsed_focus(focused)`, read the screen with `agent.read`: if it shows a highlighted numbered list, move the highlight as in "Prompt keys", otherwise error flash. Otherwise error flash |
 | any | a request fails | error flash, refresh. A failed confirmation is removed from `sent` |
 | any | Jump has stayed down for 500 ms | `trident raise`; success flash if it raised a window, otherwise error flash. Once per press |
 
@@ -245,7 +251,9 @@ Codex's list moves from its last option to its first on `down` (openai/codex `1c
 | The highlight is on the last of `n` options, `n ≥ 2` | Send the back keys `n − 1` times |
 | Otherwise, or the screen shows no highlighted numbered list, or `agent.read` fails | Send the select keys |
 
-The screen decides only where Select moves the highlight; whether Approve may confirm never depends on it.
+The screen decides only where Select moves the highlight, and whether Select acts on a lapsed pane; whether Approve may confirm never depends on it.
+
+herdr 0.9.3 reports a Claude Code question prompt as `idle` while its highlight is on "Type something.". `lapsed` keeps Select working there; Approve and the LEDs ignore `lapsed` (ADR 0016).
 
 Both agents show their approval prompts as a list whose highlight moves with the arrow keys and is confirmed with `enter`. Codex also accepts `y`, but `y` picks "yes" whatever is highlighted, so it is not used.
 

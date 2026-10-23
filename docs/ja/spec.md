@@ -197,12 +197,14 @@ layout = ["jump", "approve", "select"]
 | `sent` | `(pane_id, state_change_seq)` の集合 | 確定キーを送ったあと、まだ状態変化が報告されていないもの |
 | `done` | `pane_id` の列 | `done`（作業を終え、まだ見られていない）のエージェント。`agent.list` の順 |
 | `agents` | `pane_id` の列 | 全エージェント。`agent.list` の順 |
+| `lapsed` | `(pane_id, agent)` の集合 | pane が `idle` になったために `queue` から外れた要素。その pane が `idle` の間だけ残す（ADR 0016） |
 
 不変条件:
 
 - `queue` に同じ `pane_id` は2度現れない
 - `queue` の各要素は、最新のスナップショットで `blocked` だった
 - `sent` の各要素は、`pane_id` と `state_change_seq` の両方が `queue` のどれかと一致する
+- `lapsed` の各要素は、最新のスナップショットで `idle` だったもので、`queue` には無い
 
 `approvable(p)` は次をすべて満たすときに成り立つ。
 
@@ -210,6 +212,8 @@ layout = ["jump", "approve", "select"]
 - `p` が `focused` である
 - その要素の `agent` にプロンプト用のキーが設定されている
 - `(p, seq)` が `sent` に無い
+
+`lapsed_focus(p)` は、`p` が `lapsed` にあり、`p` が `focused` で、その要素の `agent` にプロンプト用のキーが設定されているときに成り立つ。
 
 ## 振る舞い
 
@@ -225,14 +229,16 @@ layout = ["jump", "approve", "select"]
 
 | Given | Then |
 |---|---|
-| `queue` にあり、スナップショットに無いか `blocked` でない | 除去する |
+| `queue` にあり、`idle` になり、`(pane_id, seq)` が `sent` に無い | 除去して `lapsed` に加える |
+| `queue` にあり、スナップショットに無いか `blocked` でない（上の行以外） | 除去する |
+| `lapsed` にあり、スナップショットに無いか `idle` でない | 除去する |
 | `queue` にあり、`blocked` のままで `state_change_seq` が変わった | 位置はそのままで `agent` と `state_change_seq` を更新する |
 | スナップショットで `blocked`、`queue` に無い | 末尾に追加する。接続後の最初のスナップショットでは `agent.list` の順に追加する |
 | 任意 | `focused` を `focused: true` のエージェントにする。無ければ無し |
 | 任意 | `done` を `done` のエージェントに、`agents` を全エージェントにする |
 | 任意 | `queue` と一致しなくなった `sent` の要素を捨てる |
 
-`agent.list` が失敗したら `conn = Disconnected` にし、`queue`・`focused`・`sent` を空にする。
+`agent.list` が失敗したら `conn = Disconnected` にし、`queue`・`focused`・`sent`・`lapsed` を空にする。
 `trident` は再接続を試み続ける。
 
 ### キー
@@ -245,7 +251,7 @@ layout = ["jump", "approve", "select"]
 | `queue` が空で `done` が空でない | Jump | 上の2行と同じことを `done` に対して行う |
 | `queue` も `done` も空 | Jump | 最初の2行と同じことを `agents` に対して行う。エージェントが1つも無ければエラー点滅 |
 | 任意 | Approve | 再取得する。`approvable(focused)` なら確定キーを `agent.send_keys` で送り、`(focused, seq)` を `sent` に加える。そうでなければエラー点滅 |
-| 任意 | Select | 再取得する。`approvable(focused)` なら「プロンプト用のキー」のとおりにハイライトを動かす。そうでなければエラー点滅 |
+| 任意 | Select | 再取得する。`approvable(focused)` なら「プロンプト用のキー」のとおりにハイライトを動かす。そうでなく `lapsed_focus(focused)` なら `agent.read` で画面を読み、ハイライト付きの番号リストがあれば「プロンプト用のキー」のとおりにハイライトを動かし、無ければエラー点滅。どちらでもなければエラー点滅 |
 | 任意 | リクエストが失敗 | エラー点滅、再取得。失敗した確定は `sent` から外す |
 | 任意 | Jump が押されたまま 500 ms たつ | `trident raise`。ウィンドウを前面に出せたら成功点滅、出せなければエラー点滅。1回の押下につき1回 |
 
@@ -285,7 +291,10 @@ Claude Code のリストは最後で止まる。
 | ハイライトが `n` 個（`n ≥ 2`）の選択肢の最後にある | 戻りキーを `n − 1` 回送る |
 | それ以外、画面にハイライト付きの番号リストが無い、または `agent.read` が失敗した | 選択キーを送る |
 
-画面を使うのは Select がハイライトをどこへ動かすかの判断だけで、Approve で確定してよいかの判断には使わない。
+画面を使うのは、Select がハイライトをどこへ動かすかと、lapsed の pane に Select を効かせるかの判断だけで、Approve で確定してよいかの判断には使わない。
+
+herdr 0.9.3 は、Claude Code の質問プロンプトのハイライトが「Type something.」にある間、その pane を `idle` と報告する。
+`lapsed` はそこで Select を効かせ続けるためのもので、Approve と LED は `lapsed` を見ない（ADR 0016）。
 
 どちらのエージェントも、承認プロンプトは矢印キーでハイライトが動き `enter` で確定するリストになっている。
 Codex は `y` も受け付けるが、`y` はハイライトの位置に関係なく「yes」を選ぶので使わない。
