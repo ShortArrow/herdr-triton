@@ -162,10 +162,12 @@ enum Pending {
     None,
     /// A prompt key was pressed; the refreshed snapshot decides.
     Refresh(PromptAction),
-    /// Select is waiting for the screen of `pane_id` to choose its keys.
+    /// Select is waiting for the screen of `pane_id` to choose its keys;
+    /// `lapsed` if the pane is in [`State::lapsed`] rather than the queue.
     Screen {
         pane_id: String,
         keys: PromptKeys,
+        lapsed: bool,
     },
     /// A request from `key` is in flight; `sent` is the confirmation it recorded.
     Request {
@@ -175,8 +177,9 @@ enum Pending {
 }
 
 /// trident's state. Invariants: a pane appears in `queue` at most once,
-/// every entry was blocked in the latest snapshot, and every `sent` pair
-/// matches a queue entry's pane and seq.
+/// every entry was blocked in the latest snapshot, every `sent` pair
+/// matches a queue entry's pane and seq, and every `lapsed` pane was idle
+/// in the latest snapshot and is not in `queue`.
 pub struct State {
     agent_keys: AgentKeys,
     conn: Conn,
@@ -187,6 +190,9 @@ pub struct State {
     done: Vec<String>,
     /// Every agent, in `agent.list` order.
     agents: Vec<String>,
+    /// Entries that left `queue` because their pane turned idle, kept while
+    /// it stays idle; only Select acts on them (ADR 0016).
+    lapsed: Vec<Entry>,
     pending: Pending,
 }
 
@@ -200,6 +206,7 @@ impl State {
             sent: Vec::new(),
             done: Vec::new(),
             agents: Vec::new(),
+            lapsed: Vec::new(),
             pending: Pending::None,
         }
     }
@@ -309,15 +316,31 @@ impl State {
         self.agents.clear();
         self.focused = None;
         self.sent.clear();
+        self.lapsed.clear();
         self.pending = Pending::None;
     }
 
     fn apply_snapshot(&mut self, agents: &[Agent]) {
-        let blocked = |pane: &str| {
+        let with_status = |pane: &str, status: Status| {
             agents
                 .iter()
-                .find(|a| a.pane_id == pane && a.status == Status::Blocked)
+                .find(|a| a.pane_id == pane && a.status == status)
         };
+        let blocked = |pane: &str| with_status(pane, Status::Blocked);
+        let idle = |pane: &str| with_status(pane, Status::Idle);
+        let sent = &self.sent;
+        let newly_lapsed: Vec<Entry> = self
+            .queue
+            .iter()
+            .filter(|e| {
+                !sent
+                    .iter()
+                    .any(|(pane, seq)| *pane == e.pane_id && *seq == e.state_change_seq)
+            })
+            .filter_map(|e| idle(&e.pane_id).map(entry_of))
+            .collect();
+        self.lapsed.retain(|e| idle(&e.pane_id).is_some());
+        self.lapsed.extend(newly_lapsed);
         let mut queue: Vec<Entry> = self
             .queue
             .iter()
@@ -397,10 +420,30 @@ impl State {
         (!already_sent).then_some((entry, keys))
     }
 
+    /// The focused lapsed entry and its prompt keys, if Select would read
+    /// its screen (ADR 0016).
+    fn lapsed_focus(&self) -> Option<(&Entry, &PromptKeys)> {
+        let focused = self.focused.as_deref()?;
+        let entry = self.lapsed.iter().find(|e| e.pane_id == focused)?;
+        let keys = self.agent_keys.get(entry.agent.as_deref()?)?;
+        Some((entry, keys))
+    }
+
     fn act_on_prompt(&mut self, action: PromptAction) -> Vec<Cmd> {
         let key = action.key();
         let Some((entry, keys)) = self.approvable() else {
-            return error(key);
+            return match (action, self.lapsed_focus()) {
+                (PromptAction::Select, Some((entry, keys))) => {
+                    let pane_id = entry.pane_id.clone();
+                    self.pending = Pending::Screen {
+                        pane_id: pane_id.clone(),
+                        keys: keys.clone(),
+                        lapsed: true,
+                    };
+                    vec![Cmd::ReadScreen { pane_id }]
+                }
+                _ => error(key),
+            };
         };
         let pane_id = entry.pane_id.clone();
         let (keys, sent) = match action {
@@ -412,6 +455,7 @@ impl State {
                 self.pending = Pending::Screen {
                     pane_id: pane_id.clone(),
                     keys: keys.clone(),
+                    lapsed: false,
                 };
                 return vec![Cmd::ReadScreen { pane_id }];
             }
@@ -425,13 +469,22 @@ impl State {
     }
 
     /// Sends Select's keys once the screen is known: back to the first
-    /// option from the last of a list, down otherwise (ADR 0010).
+    /// option from the last of a list, down otherwise (ADR 0010). A lapsed
+    /// pane without a highlighted list gets nothing (ADR 0016).
     fn select_on_screen(&mut self, screen: Option<&str>) -> Vec<Cmd> {
-        let Pending::Screen { pane_id, keys } = std::mem::replace(&mut self.pending, Pending::None)
+        let Pending::Screen {
+            pane_id,
+            keys,
+            lapsed,
+        } = std::mem::replace(&mut self.pending, Pending::None)
         else {
             return Vec::new();
         };
-        let at_last = screen.and_then(crate::prompt_screen::parse).and_then(|p| {
+        let prompt = screen.and_then(crate::prompt_screen::parse);
+        if lapsed && prompt.as_ref().and_then(|p| p.highlighted).is_none() {
+            return error(Key::Select);
+        }
+        let at_last = prompt.and_then(|p| {
             let last = p.options.last()?.0;
             (last >= 2 && p.highlighted == Some(last)).then_some(last)
         });

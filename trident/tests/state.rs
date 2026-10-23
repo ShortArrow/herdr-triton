@@ -607,6 +607,93 @@ mod select_by_screen {
     }
 }
 
+/// herdr reports Claude Code's question prompt as idle while the highlight
+/// is on "Type something." (ADR 0016).
+mod lapsed {
+    use super::*;
+
+    fn stopper(pane: &str, status: Status) -> Agent {
+        let mut a = focused(agent(pane, status, 1));
+        a.agent = Some("stopper".into());
+        a
+    }
+
+    /// A question prompt with the highlight on "Type something.".
+    const ON_TYPE_SOMETHING: &str =
+        " 1. Yes\n 2. No\n❯ 3. Type something.\n────\n 4. Chat about this\n";
+
+    /// A state whose focused pane was blocked and is now idle.
+    fn lapsed() -> State {
+        let mut s = with(vec![stopper("a", Status::Blocked)]);
+        s.update(Msg::Snapshot(vec![stopper("a", Status::Idle)]));
+        s
+    }
+
+    fn read_screen(pane: &str) -> Vec<Cmd> {
+        vec![Cmd::ReadScreen {
+            pane_id: pane.into(),
+        }]
+    }
+
+    #[test]
+    fn blocked_turning_idle_is_lapsed() {
+        let mut s = lapsed();
+        assert_eq!(
+            select(&mut s, vec![stopper("a", Status::Idle)]),
+            read_screen("a")
+        );
+    }
+
+    #[test]
+    fn select_on_a_lapsed_prompt_moves_the_highlight() {
+        let mut s = lapsed();
+        select(&mut s, vec![stopper("a", Status::Idle)]);
+        assert_eq!(
+            s.update(Msg::Screen(Some(ON_TYPE_SOMETHING.into()))),
+            send("a", "down")
+        );
+    }
+
+    #[test]
+    fn select_on_a_lapsed_pane_without_a_list_flashes_red() {
+        for screen in [Some("> \n".to_string()), None] {
+            let mut s = lapsed();
+            select(&mut s, vec![stopper("a", Status::Idle)]);
+            assert_eq!(s.update(Msg::Screen(screen)), error(Key::Select));
+        }
+    }
+
+    #[test]
+    fn approve_on_a_lapsed_pane_flashes_red() {
+        let mut s = lapsed();
+        assert_eq!(
+            approve(&mut s, vec![stopper("a", Status::Idle)]),
+            error(Key::Approve)
+        );
+    }
+
+    #[test]
+    fn a_confirmed_pane_is_not_lapsed() {
+        let mut s = with(vec![stopper("a", Status::Blocked)]);
+        approve(&mut s, vec![stopper("a", Status::Blocked)]);
+        s.update(Msg::Snapshot(vec![stopper("a", Status::Idle)]));
+        assert_eq!(
+            select(&mut s, vec![stopper("a", Status::Idle)]),
+            error(Key::Select)
+        );
+    }
+
+    #[test]
+    fn lapsed_ends_when_the_pane_leaves_idle() {
+        let mut s = lapsed();
+        s.update(Msg::Snapshot(vec![stopper("a", Status::Working)]));
+        assert_eq!(
+            select(&mut s, vec![stopper("a", Status::Idle)]),
+            error(Key::Select)
+        );
+    }
+}
+
 mod jump_to_done {
     use super::*;
 
