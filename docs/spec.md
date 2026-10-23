@@ -365,6 +365,7 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 
 ## Unspecified
 
+- Agents on other machines that a herdr client shows alongside local ones (`herdr machine`). `trident` reads only the local server's API, and neither server's API says which machine the client has in focus
 - Long-press actions other than Jump's
 - Which window `trident raise` brings forward when several herdr clients run, or when the terminal process has several windows
 - How `done` is shown
