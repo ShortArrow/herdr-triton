@@ -194,10 +194,8 @@ pub struct State {
     queue: Vec<Entry>,
     focused: Option<String>,
     sent: Vec<(String, u64)>,
-    /// Agents that have finished and not been seen, in `agent.list` order.
-    done: Vec<String>,
-    /// Every agent, in `agent.list` order.
-    agents: Vec<String>,
+    /// The latest snapshot, in `agent.list` order.
+    agents: Vec<Agent>,
     /// Entries that left `queue` because their pane turned idle, kept while
     /// it stays idle; only Select acts on them (ADR 0016).
     lapsed: Vec<Entry>,
@@ -212,7 +210,6 @@ impl State {
             queue: Vec::new(),
             focused: None,
             sent: Vec::new(),
-            done: Vec::new(),
             agents: Vec::new(),
             lapsed: Vec::new(),
             pending: Pending::None,
@@ -258,7 +255,7 @@ impl State {
 
     /// How many agents have finished and not been seen.
     pub fn finished(&self) -> usize {
-        self.done.len()
+        self.done().count()
     }
 
     /// How many agents are waiting.
@@ -288,7 +285,7 @@ impl State {
                 }; 3]
             }
             Conn::Incompatible => [solid(palette::RED); 3],
-            Conn::Connected if self.queue.is_empty() && self.done.is_empty() => [
+            Conn::Connected if self.queue.is_empty() && self.finished() == 0 => [
                 Led {
                     rgb: palette::WHITE,
                     mode: Mode::Breathe,
@@ -323,7 +320,6 @@ impl State {
     fn lose_herdr(&mut self, conn: Conn) {
         self.conn = conn;
         self.queue.clear();
-        self.done.clear();
         self.agents.clear();
         self.focused = None;
         self.sent.clear();
@@ -364,12 +360,7 @@ impl State {
         }
         self.queue = queue;
         self.focused = agents.iter().find(|a| a.focused).map(|a| a.pane_id.clone());
-        self.done = agents
-            .iter()
-            .filter(|a| a.status == Status::Done)
-            .map(|a| a.pane_id.clone())
-            .collect();
-        self.agents = agents.iter().map(|a| a.pane_id.clone()).collect();
+        self.agents = agents.to_vec();
         let queue = &self.queue;
         self.sent.retain(|(pane, seq)| {
             queue
@@ -387,6 +378,11 @@ impl State {
         self.queue.get(index).map(|e| e.pane_id.clone())
     }
 
+    /// Agents that have finished and not been seen, in `agent.list` order.
+    fn done(&self) -> impl Iterator<Item = &Agent> {
+        self.agents.iter().filter(|a| a.status == Status::Done)
+    }
+
     fn focused_index(&self) -> Option<usize> {
         let focused = self.focused.as_deref()?;
         self.queue.iter().position(|e| e.pane_id == focused)
@@ -395,14 +391,14 @@ impl State {
     /// Jump's tiers (ADR 0011): waiting agents, then done ones, then every agent.
     fn jump(&mut self) -> Vec<Cmd> {
         let focused = self.focused.as_deref();
-        let within = |ids: &[String]| {
-            let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+        let within = |agents: Vec<&Agent>| {
+            let ids: Vec<&str> = agents.iter().map(|a| a.pane_id.as_str()).collect();
             next_after(&ids, focused)
         };
         let target = self
             .jump_target()
-            .or_else(|| within(&self.done))
-            .or_else(|| within(&self.agents));
+            .or_else(|| within(self.done().collect()))
+            .or_else(|| within(self.agents.iter().collect()));
         match target {
             Some(pane_id) => {
                 self.pending = Pending::Request {
