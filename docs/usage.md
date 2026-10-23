@@ -63,7 +63,7 @@ The specification lists every command, mode and error ([protocol](spec.md#firmwa
 - **A serial terminal cannot open the port.** `trident` holds it; run `.plugin/bin/trident stop` first
 - **`cargo keypad` finds no board.** The first time, the board must be in BOOT mode with the WinUSB driver from Zadig (see the README)
 - **Jump lands in the workspaces pane instead of on the agent.** A known herdr issue: when herdr's agents pane is too short for every agent and shows a scroll bar, herdr cannot move its focus to an agent scrolled out of view. herdr does focus the agent's pane, but its sidebar falls back to the workspaces pane. Make the agents pane tall enough to show every agent
-- **Approve and Select flash red on an agent of another machine.** herdr shows agents of a saved machine (`herdr machine`) next to local ones, but `trident` reaches only this machine's herdr server. The keys act on local agents only
+- **Jump skips the agents of another machine, and Approve and Select flash red on them.** herdr shows agents of a saved machine (`herdr machine`) next to local ones, but `trident` reaches only this machine's herdr server, and no API switches the machine the client shows. The keys act on local agents only
 
 ## For development
 
