@@ -1,6 +1,6 @@
 use protocol::{Led, Mode};
 use trident::state::{
-    palette::*, Agent, AgentKeys, Cmd, Conn, Key, Msg, PromptKeys, State, Status, Wrap,
+    palette::*, Agent, AgentKeys, AgentSort, Cmd, Conn, Key, Msg, PromptKeys, State, Status, Wrap,
 };
 
 fn agent(pane: &str, status: Status, seq: u64) -> Agent {
@@ -110,13 +110,6 @@ mod snapshot {
     }
 
     #[test]
-    fn a_newly_blocked_agent_joins_the_tail() {
-        let mut s = with(vec![blocked("b")]);
-        s.update(Msg::Snapshot(vec![blocked("a"), blocked("b")]));
-        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
-    }
-
-    #[test]
     fn an_agent_no_longer_blocked_leaves_the_queue() {
         let mut s = with(vec![blocked("a"), blocked("b")]);
         s.update(Msg::Snapshot(vec![
@@ -131,16 +124,6 @@ mod snapshot {
         let mut s = with(vec![blocked("a"), blocked("b")]);
         s.update(Msg::Snapshot(vec![blocked("b")]));
         assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
-    }
-
-    #[test]
-    fn a_blocked_agent_whose_seq_changed_keeps_its_position() {
-        let mut s = with(vec![blocked("a"), blocked("b")]);
-        s.update(Msg::Snapshot(vec![
-            blocked("b"),
-            agent("a", Status::Blocked, 9),
-        ]));
-        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 
     #[test]
@@ -202,7 +185,7 @@ mod jump {
     }
 
     #[test]
-    fn does_not_reorder_the_queue() {
+    fn after_a_jump_the_order_stays_the_lists() {
         let mut s = with(vec![focused(blocked("a")), blocked("b")]);
         s.update(Msg::KeyDown(Key::Jump));
         s.update(Msg::RequestDone { ok: true });
@@ -834,6 +817,114 @@ mod jump_to_agents {
             agent("d", Status::Done, 1),
         ]);
         assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("d"));
+    }
+}
+
+mod jump_order {
+    use super::*;
+
+    fn sorted(sort: AgentSort, snapshot: Vec<Agent>) -> State {
+        let mut s = with(snapshot);
+        s.update(Msg::AgentSort(sort));
+        s
+    }
+
+    #[test]
+    fn grouped_waiting_agents_follow_the_list_not_their_arrival() {
+        let mut s = with(vec![blocked("b")]);
+        s.update(Msg::Snapshot(vec![blocked("a"), blocked("b")]));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
+    }
+
+    #[test]
+    fn priority_puts_the_newest_waiting_agent_first() {
+        let mut s = sorted(
+            AgentSort::Priority,
+            vec![
+                agent("a", Status::Blocked, 1),
+                agent("b", Status::Blocked, 5),
+                agent("c", Status::Blocked, 3),
+            ],
+        );
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
+    }
+
+    #[test]
+    fn priority_cycles_from_the_focused_agent_in_its_order() {
+        let mut s = sorted(
+            AgentSort::Priority,
+            vec![
+                agent("a", Status::Blocked, 1),
+                agent("b", Status::Blocked, 5),
+                focused(agent("c", Status::Blocked, 3)),
+            ],
+        );
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
+    }
+
+    #[test]
+    fn priority_ties_keep_the_list_order() {
+        let mut s = sorted(
+            AgentSort::Priority,
+            vec![
+                agent("a", Status::Done, 2),
+                focused(agent("b", Status::Done, 2)),
+                agent("c", Status::Done, 2),
+            ],
+        );
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("c"));
+    }
+
+    #[test]
+    fn priority_orders_every_agent_by_status_then_newest() {
+        let snapshot = |focus_on: &str| {
+            [
+                agent("u", Status::Unknown, 9),
+                agent("i", Status::Idle, 9),
+                agent("w1", Status::Working, 1),
+                agent("w2", Status::Working, 4),
+            ]
+            .into_iter()
+            .map(|a| if a.pane_id == focus_on { focused(a) } else { a })
+            .collect()
+        };
+        for (from, to) in [
+            ("", "w2"),
+            ("w2", "w1"),
+            ("w1", "i"),
+            ("i", "u"),
+            ("u", "w2"),
+        ] {
+            let mut s = sorted(AgentSort::Priority, snapshot(from));
+            assert_eq!(
+                s.update(Msg::KeyDown(Key::Jump)),
+                focus(to),
+                "from {from:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_sort_is_kept_across_snapshots() {
+        let mut s = sorted(AgentSort::Priority, vec![]);
+        s.update(Msg::Snapshot(vec![
+            agent("a", Status::Blocked, 1),
+            agent("b", Status::Blocked, 2),
+        ]));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("b"));
+    }
+
+    #[test]
+    fn grouped_again_restores_the_list_order() {
+        let mut s = sorted(
+            AgentSort::Priority,
+            vec![
+                agent("a", Status::Blocked, 1),
+                agent("b", Status::Blocked, 2),
+            ],
+        );
+        s.update(Msg::AgentSort(AgentSort::Grouped));
+        assert_eq!(s.update(Msg::KeyDown(Key::Jump)), focus("a"));
     }
 }
 

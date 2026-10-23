@@ -10,7 +10,7 @@ use crate::herdr::client::{CallError, Client};
 use crate::herdr::wire::{is_supported, Request, Response};
 use crate::hold::{Hold, SelectHold};
 use crate::layout::Layout;
-use crate::state::{palette, AgentKeys, Cmd, Conn, Key, Msg, State};
+use crate::state::{palette, AgentKeys, AgentSort, Cmd, Conn, Key, Msg, State};
 
 /// Milliseconds on a monotonic clock.
 pub type Millis = u64;
@@ -47,6 +47,11 @@ pub trait Keys {
 pub trait Raise {
     /// Whether that window is now in front.
     fn raise(&mut self) -> bool;
+}
+
+/// Reads the order of herdr's agents pane, which Jump follows (ADR 0018).
+pub trait PanelSort {
+    fn read(&mut self) -> AgentSort;
 }
 
 /// `Run` stays active and keeps going; `Listen` goes quiet while nothing
@@ -86,6 +91,7 @@ pub struct Runtime<H, K> {
     idle_since: Option<Millis>,
     gone_since: Option<Millis>,
     raise: Option<Box<dyn Raise>>,
+    panel_sort: Option<Box<dyn PanelSort>>,
     hold: Hold,
     select_hold: SelectHold,
     select_held: Hold,
@@ -106,6 +112,7 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
             idle_since: None,
             gone_since: None,
             raise: None,
+            panel_sort: None,
             hold: Hold::default(),
             select_hold: SelectHold::default(),
             select_held: Hold::default(),
@@ -122,6 +129,13 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
     /// only jumps.
     pub fn with_raise(mut self, raise: Box<dyn Raise>) -> Self {
         self.raise = Some(raise);
+        self
+    }
+
+    /// Reads the agents pane's order each time Jump goes down; without it,
+    /// Jump follows `agent.list` order.
+    pub fn with_panel_sort(mut self, panel_sort: Box<dyn PanelSort>) -> Self {
+        self.panel_sort = Some(panel_sort);
         self
     }
 
@@ -188,6 +202,9 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
                 Edge::Down => {
                     if key == Key::Jump {
                         self.hold.down(now);
+                        if let Some(sort) = self.panel_sort.as_mut().map(|p| p.read()) {
+                            self.state.update(Msg::AgentSort(sort));
+                        }
                     }
                     self.wake(now)?;
                     let cmds = self.state.update(Msg::KeyDown(key));

@@ -791,3 +791,87 @@ mod holding {
         assert_eq!(rt.keys().flashes, vec![(Position::Left, palette::WHITE)]);
     }
 }
+
+mod panel_sort {
+    use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+    use trident::runtime::PanelSort;
+    use trident::state::AgentSort;
+
+    /// Counts its calls and answers `sort`.
+    struct FakeSort {
+        calls: Rc<Cell<usize>>,
+        sort: AgentSort,
+    }
+
+    impl PanelSort for FakeSort {
+        fn read(&mut self) -> AgentSort {
+            self.calls.set(self.calls.get() + 1);
+            self.sort
+        }
+    }
+
+    fn waiting() -> Vec<Agent> {
+        let mut b = blocked("b", false);
+        b.state_change_seq = 5;
+        vec![blocked("a", false), b]
+    }
+
+    fn with_sort(sort: AgentSort) -> (Runtime<FakeHerdr, FakeKeys>, Rc<Cell<usize>>) {
+        let calls = Rc::new(Cell::new(0));
+        let mut rt = Runtime::new(
+            FakeHerdr::new(waiting()),
+            FakeKeys::default(),
+            keys(),
+            RunMode::Run,
+        )
+        .with_panel_sort(Box::new(FakeSort {
+            calls: calls.clone(),
+            sort,
+        }));
+        rt.start(0).unwrap();
+        (rt, calls)
+    }
+
+    fn press(rt: &mut Runtime<FakeHerdr, FakeKeys>, pos: Position, at: u64) {
+        rt.keys_mut().events.push_back((pos, Edge::Down));
+        rt.tick(at).unwrap();
+    }
+
+    fn focused_target(rt: &Runtime<FakeHerdr, FakeKeys>) -> Option<String> {
+        rt.herdr().requests.iter().find_map(|r| match r {
+            Request::AgentFocus { target } => Some(target.clone()),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn jump_reads_the_sort_and_follows_it() {
+        let (mut rt, calls) = with_sort(AgentSort::Priority);
+        press(&mut rt, Position::Left, 10);
+        assert_eq!(calls.get(), 1);
+        assert_eq!(focused_target(&rt).as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn other_keys_do_not_read_it() {
+        let (mut rt, calls) = with_sort(AgentSort::Priority);
+        press(&mut rt, Position::Middle, 10);
+        press(&mut rt, Position::Right, 20);
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn without_one_jump_follows_the_list() {
+        let mut rt = Runtime::new(
+            FakeHerdr::new(waiting()),
+            FakeKeys::default(),
+            keys(),
+            RunMode::Run,
+        );
+        rt.start(0).unwrap();
+        press(&mut rt, Position::Left, 10);
+        assert_eq!(focused_target(&rt).as_deref(), Some("a"));
+    }
+}

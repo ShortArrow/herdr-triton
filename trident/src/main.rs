@@ -28,6 +28,7 @@ use std::time::{Duration, Instant};
 use protocol::scpi::PROTOCOL_VERSION;
 use trident::config::{self, Config};
 use trident::device::{find_port, Device};
+use trident::herdr::agent_sort;
 use trident::herdr::client::Client;
 use trident::herdr::socket_path::{for_session, resolve, Platform};
 use trident::listener::Signal;
@@ -86,7 +87,8 @@ fn in_process(socket: &Path, mode: Mode, log: &mut Log) -> ExitCode {
     let mut runtime = raising(
         Runtime::new(Client::new(socket.into()), keypad, prompt_keys(), mode)
             .with_layout(config.layout)
-            .with_select_hold(config.select_hold),
+            .with_select_hold(config.select_hold)
+            .with_panel_sort(Box::new(HerdrPanelSort(socket.into()))),
     );
     let ended = serve(&mut runtime, &clock, |d| {
         sleep(d);
@@ -175,7 +177,8 @@ fn listen(socket: &Path, mut port: String) -> ExitCode {
                         Mode::Listen,
                     )
                     .with_layout(config.layout)
-                    .with_select_hold(config.select_hold),
+                    .with_select_hold(config.select_hold)
+                    .with_panel_sort(Box::new(HerdrPanelSort(socket.into()))),
                 );
                 let ended = serve(&mut runtime, &clock, wait);
                 log.line(&format!("listen: {ended:?}"));
@@ -374,6 +377,17 @@ impl trident::runtime::Raise for RaiseHidden {
                 trident::listener::run_hidden(std::process::Command::new(exe).arg("raise")).ok()
             })
             .is_some_and(|output| output.status.success())
+    }
+}
+
+/// Reads the agents pane's order from herdr's files, for the herdr behind
+/// this API socket (ADR 0018).
+struct HerdrPanelSort(PathBuf);
+
+impl trident::runtime::PanelSort for HerdrPanelSort {
+    fn read(&mut self) -> trident::state::AgentSort {
+        let env = |k: &str| std::env::var(k).ok();
+        agent_sort::read(&self.0, &env, Platform::current(), &std::env::temp_dir())
     }
 }
 

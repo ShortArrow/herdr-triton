@@ -1,6 +1,7 @@
 //! trident's state machine: herdr snapshots and key presses in,
 //! herdr requests and LED output out. No IO.
 
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
 use protocol::{Led, Mode, Rgb};
@@ -23,6 +24,17 @@ pub struct Agent {
     pub status: Status,
     pub focused: bool,
     pub state_change_seq: u64,
+}
+
+/// The order of herdr's agents pane, which Jump follows (ADR 0018).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AgentSort {
+    /// `agent.list` order.
+    #[default]
+    Grouped,
+    /// By status, blocked first, then the highest `state_change_seq` first;
+    /// ties keep `agent.list` order.
+    Priority,
 }
 
 /// The keypad's keys, by what they do (specification, "Keys"). Which
@@ -55,6 +67,8 @@ pub enum Msg {
     Snapshot(Vec<Agent>),
     SnapshotFailed,
     KeyDown(Key),
+    /// The agents pane's order, read when Jump goes down.
+    AgentSort(AgentSort),
     /// A key has stayed down for [`crate::hold::HOLD`]; only Select acts on
     /// it, when `select_hold` asks for it (ADR 0017).
     KeyHeld(Key),
@@ -199,6 +213,7 @@ pub struct State {
     /// Entries that left `queue` because their pane turned idle, kept while
     /// it stays idle; only Select acts on them (ADR 0016).
     lapsed: Vec<Entry>,
+    sort: AgentSort,
     pending: Pending,
 }
 
@@ -212,6 +227,7 @@ impl State {
             sent: Vec::new(),
             agents: Vec::new(),
             lapsed: Vec::new(),
+            sort: AgentSort::default(),
             pending: Pending::None,
         }
     }
@@ -240,6 +256,10 @@ impl State {
                         Vec::new()
                     }
                 }
+            }
+            Msg::AgentSort(sort) => {
+                self.sort = sort;
+                Vec::new()
             }
             Msg::KeyDown(key) if self.conn != Conn::Connected => error(key),
             Msg::KeyDown(Key::Jump) => self.jump(),
@@ -369,15 +389,6 @@ impl State {
         });
     }
 
-    /// The entry after the focused one, cycling; the head if focus is elsewhere.
-    fn jump_target(&self) -> Option<String> {
-        let index = match self.focused_index() {
-            Some(i) => (i + 1) % self.queue.len(),
-            None => 0,
-        };
-        self.queue.get(index).map(|e| e.pane_id.clone())
-    }
-
     /// Agents that have finished and not been seen, in `agent.list` order.
     fn done(&self) -> impl Iterator<Item = &Agent> {
         self.agents.iter().filter(|a| a.status == Status::Done)
@@ -388,17 +399,22 @@ impl State {
         self.queue.iter().position(|e| e.pane_id == focused)
     }
 
-    /// Jump's tiers (ADR 0011): waiting agents, then done ones, then every agent.
+    /// Jump's tiers (ADR 0011): waiting agents, then done ones, then every
+    /// agent, each in the agents pane's order (ADR 0018).
     fn jump(&mut self) -> Vec<Cmd> {
         let focused = self.focused.as_deref();
-        let within = |agents: Vec<&Agent>| {
-            let ids: Vec<&str> = agents.iter().map(|a| a.pane_id.as_str()).collect();
+        let order = pane_order(&self.agents, self.sort);
+        let within = |keep: &dyn Fn(&Agent) -> bool| {
+            let ids: Vec<&str> = order
+                .iter()
+                .filter(|a| keep(a))
+                .map(|a| a.pane_id.as_str())
+                .collect();
             next_after(&ids, focused)
         };
-        let target = self
-            .jump_target()
-            .or_else(|| within(self.done().collect()))
-            .or_else(|| within(self.agents.iter().collect()));
+        let target = within(&|a| self.queue.iter().any(|e| e.pane_id == a.pane_id))
+            .or_else(|| within(&|a| a.status == Status::Done))
+            .or_else(|| within(&|_| true));
         match target {
             Some(pane_id) => {
                 self.pending = Pending::Request {
@@ -538,6 +554,27 @@ fn entry_of(a: &Agent) -> Entry {
         pane_id: a.pane_id.clone(),
         agent: a.agent.clone(),
         state_change_seq: a.state_change_seq,
+    }
+}
+
+/// `agents` in the order herdr's agents pane shows them (herdr
+/// `src/client/shell/agent_sidebar.rs`).
+fn pane_order(agents: &[Agent], sort: AgentSort) -> Vec<&Agent> {
+    let mut order: Vec<&Agent> = agents.iter().collect();
+    if sort == AgentSort::Priority {
+        order.sort_by_key(|a| (Reverse(rank(a.status)), Reverse(a.state_change_seq)));
+    }
+    order
+}
+
+/// A status's place in the `priority` order, higher first.
+fn rank(status: Status) -> u8 {
+    match status {
+        Status::Blocked => 4,
+        Status::Done => 3,
+        Status::Working => 2,
+        Status::Idle => 1,
+        Status::Unknown => 0,
     }
 }
 
