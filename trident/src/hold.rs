@@ -1,7 +1,17 @@
-//! When a held key counts as a long press (ADR 0015).
+//! When a held key counts as a long press (ADR 0015, ADR 0017).
 
 /// How long, in milliseconds, a key stays down before it counts as held.
 pub const HOLD: u64 = 500;
+
+/// What holding Select does, `select_hold` in `config.toml` (ADR 0017).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SelectHold {
+    /// Nothing; Select acts when it goes down.
+    #[default]
+    None,
+    /// The back keys once; a short Select acts when it comes up.
+    Up,
+}
 
 /// One key's press, in milliseconds on the runtime's clock. Invariant:
 /// `since` is set only while the key is down and has not yet been due.
@@ -16,9 +26,9 @@ impl Hold {
         self.since = Some(now);
     }
 
-    /// The key went up.
-    pub fn up(&mut self) {
-        self.since = None;
+    /// The key went up; whether the press was still short, not yet due.
+    pub fn up(&mut self) -> bool {
+        self.since.take().is_some()
     }
 
     /// Whether the press has just been held for [`HOLD`] at `now`: true once

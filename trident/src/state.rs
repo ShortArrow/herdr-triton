@@ -55,6 +55,9 @@ pub enum Msg {
     Snapshot(Vec<Agent>),
     SnapshotFailed,
     KeyDown(Key),
+    /// A key has stayed down for [`crate::hold::HOLD`]; only Select acts on
+    /// it, when `select_hold` asks for it (ADR 0017).
+    KeyHeld(Key),
     /// The outcome of the last `Cmd::Focus` or `Cmd::SendKeys`.
     RequestDone {
         ok: bool,
@@ -147,13 +150,15 @@ struct Entry {
 enum PromptAction {
     Confirm,
     Select,
+    /// A held Select: the back keys once (ADR 0017).
+    Back,
 }
 
 impl PromptAction {
     fn key(self) -> Key {
         match self {
             PromptAction::Confirm => Key::Approve,
-            PromptAction::Select => Key::Select,
+            PromptAction::Select | PromptAction::Back => Key::Select,
         }
     }
 }
@@ -164,9 +169,10 @@ enum Pending {
     None,
     /// A prompt key was pressed; the refreshed snapshot decides.
     Refresh(PromptAction),
-    /// Select is waiting for the screen of `pane_id` to choose its keys;
-    /// `lapsed` if the pane is in [`State::lapsed`] rather than the queue.
+    /// Select or Back is waiting for the screen of `pane_id` to choose its
+    /// keys; `lapsed` if the pane is in [`State::lapsed`] rather than the queue.
     Screen {
+        action: PromptAction,
         pane_id: String,
         keys: PromptKeys,
         lapsed: bool,
@@ -242,6 +248,9 @@ impl State {
             Msg::KeyDown(Key::Jump) => self.jump(),
             Msg::KeyDown(Key::Approve) => self.refresh_for(PromptAction::Confirm),
             Msg::KeyDown(Key::Select) => self.refresh_for(PromptAction::Select),
+            Msg::KeyHeld(Key::Select) if self.conn != Conn::Connected => error(Key::Select),
+            Msg::KeyHeld(Key::Select) => self.refresh_for(PromptAction::Back),
+            Msg::KeyHeld(_) => Vec::new(),
             Msg::RequestDone { ok } => self.finish_request(ok),
             Msg::Screen(screen) => self.select_on_screen(screen.as_deref()),
         }
@@ -435,9 +444,10 @@ impl State {
         let key = action.key();
         let Some((entry, keys)) = self.approvable() else {
             return match (action, self.lapsed_focus()) {
-                (PromptAction::Select, Some((entry, keys))) => {
+                (PromptAction::Select | PromptAction::Back, Some((entry, keys))) => {
                     let pane_id = entry.pane_id.clone();
                     self.pending = Pending::Screen {
+                        action,
                         pane_id: pane_id.clone(),
                         keys: keys.clone(),
                         lapsed: true,
@@ -455,6 +465,7 @@ impl State {
             ),
             PromptAction::Select if keys.wrap != Wrap::Native => {
                 self.pending = Pending::Screen {
+                    action,
                     pane_id: pane_id.clone(),
                     keys: keys.clone(),
                     lapsed: false,
@@ -462,6 +473,7 @@ impl State {
                 return vec![Cmd::ReadScreen { pane_id }];
             }
             PromptAction::Select => (keys.select.clone(), None),
+            PromptAction::Back => (keys.back.clone(), None),
         };
         if let Some(mark) = &sent {
             self.sent.push(mark.clone());
@@ -472,9 +484,11 @@ impl State {
 
     /// Sends Select's keys once the screen is known: back to the first
     /// option from the last of a list, down otherwise (ADR 0010). A lapsed
-    /// pane without a highlighted list gets nothing (ADR 0016).
+    /// pane without a highlighted list gets nothing (ADR 0016); Back sends
+    /// the back keys once (ADR 0017).
     fn select_on_screen(&mut self, screen: Option<&str>) -> Vec<Cmd> {
         let Pending::Screen {
+            action,
             pane_id,
             keys,
             lapsed,
@@ -490,8 +504,9 @@ impl State {
             let last = p.options.last()?.0;
             (last >= 2 && p.highlighted == Some(last)).then_some(last)
         });
-        let keys = match (at_last, &keys.wrap) {
-            (Some(n), Wrap::ByScreen) => keys
+        let keys = match (action, at_last, &keys.wrap) {
+            (PromptAction::Back, _, _) => keys.back,
+            (_, Some(n), Wrap::ByScreen) => keys
                 .back
                 .iter()
                 .cloned()

@@ -693,6 +693,78 @@ mod lapsed {
     }
 }
 
+/// Select held for 500 ms with `select_hold = "up"` (ADR 0017).
+mod select_held {
+    use super::*;
+
+    fn stopper(pane: &str, status: Status) -> Agent {
+        let mut a = focused(agent(pane, status, 1));
+        a.agent = Some("stopper".into());
+        a
+    }
+
+    /// Holds Select and answers its refresh with `snapshot`.
+    fn hold(s: &mut State, snapshot: Vec<Agent>) -> Vec<Cmd> {
+        assert_eq!(s.update(Msg::KeyHeld(Key::Select)), vec![Cmd::Poll]);
+        s.update(Msg::Snapshot(snapshot))
+    }
+
+    #[test]
+    fn on_a_blocked_prompt_it_sends_the_back_keys_once() {
+        let mut s = with(vec![]);
+        assert_eq!(hold(&mut s, vec![focused(blocked("a"))]), send("a", "up"));
+    }
+
+    #[test]
+    fn on_a_list_that_stops_it_does_not_read_the_screen() {
+        let mut s = with(vec![]);
+        assert_eq!(
+            hold(&mut s, vec![stopper("a", Status::Blocked)]),
+            send("a", "up")
+        );
+    }
+
+    #[test]
+    fn with_nothing_approvable_it_flashes_red() {
+        let mut s = with(vec![]);
+        assert_eq!(hold(&mut s, vec![blocked("a")]), error(Key::Select));
+    }
+
+    #[test]
+    fn on_a_lapsed_prompt_it_reads_the_screen_then_goes_back() {
+        let mut s = with(vec![stopper("a", Status::Blocked)]);
+        s.update(Msg::Snapshot(vec![stopper("a", Status::Idle)]));
+        assert_eq!(
+            hold(&mut s, vec![stopper("a", Status::Idle)]),
+            vec![Cmd::ReadScreen {
+                pane_id: "a".into()
+            }]
+        );
+        assert_eq!(
+            s.update(Msg::Screen(Some(" 1. Yes\n❯ 2. Type something.\n".into()))),
+            send("a", "up")
+        );
+    }
+
+    #[test]
+    fn on_a_lapsed_pane_without_a_list_it_flashes_red() {
+        let mut s = with(vec![stopper("a", Status::Blocked)]);
+        s.update(Msg::Snapshot(vec![stopper("a", Status::Idle)]));
+        hold(&mut s, vec![stopper("a", Status::Idle)]);
+        assert_eq!(
+            s.update(Msg::Screen(Some("> \n".into()))),
+            error(Key::Select)
+        );
+    }
+
+    #[test]
+    fn a_held_jump_or_approve_asks_herdr_nothing() {
+        let mut s = with(vec![focused(blocked("a"))]);
+        assert_eq!(s.update(Msg::KeyHeld(Key::Jump)), vec![]);
+        assert_eq!(s.update(Msg::KeyHeld(Key::Approve)), vec![]);
+    }
+}
+
 mod jump_to_done {
     use super::*;
 

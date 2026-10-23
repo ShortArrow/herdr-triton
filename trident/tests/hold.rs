@@ -50,6 +50,17 @@ fn the_next_press_is_due_again() {
 }
 
 #[test]
+fn a_release_says_whether_the_press_was_still_short() {
+    let mut hold = Hold::default();
+    hold.down(1_000);
+    assert!(hold.up());
+    hold.down(2_000);
+    assert!(hold.due(2_000 + HOLD));
+    assert!(!hold.up());
+    assert!(!hold.up());
+}
+
+#[test]
 fn the_hold_time_is_500_ms() {
     assert_eq!(HOLD, 500);
 }

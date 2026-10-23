@@ -6,6 +6,7 @@ use std::io;
 use protocol::{Edge, Led, Mode, Position, Rgb};
 use trident::herdr::client::CallError;
 use trident::herdr::wire::{Request, Response};
+use trident::hold::SelectHold;
 use trident::runtime::{Exit, Herdr, Keys, Mode as RunMode, Runtime, ACTIVE_TICK, QUIET_TICK};
 use trident::state::{palette, Agent, AgentKeys, PromptKeys, Status, Wrap};
 
@@ -294,6 +295,82 @@ mod keys_to_herdr {
             .filter(|r| matches!(r, Request::AgentFocus { .. }))
             .count();
         assert_eq!(focuses, 2);
+    }
+}
+
+/// `select_hold` decides when Select acts (ADR 0017).
+mod select_hold {
+    use super::*;
+
+    fn holding(hold: SelectHold) -> Runtime<FakeHerdr, FakeKeys> {
+        let mut rt = Runtime::new(
+            FakeHerdr::new(vec![blocked("a", true)]),
+            FakeKeys::default(),
+            keys(),
+            RunMode::Run,
+        )
+        .with_select_hold(hold);
+        rt.start(0).unwrap();
+        rt
+    }
+
+    fn sent(rt: &Runtime<FakeHerdr, FakeKeys>) -> Vec<Vec<String>> {
+        rt.herdr()
+            .requests
+            .iter()
+            .filter_map(|r| match r {
+                Request::AgentSendKeys { keys, .. } => Some(keys.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn press(rt: &mut Runtime<FakeHerdr, FakeKeys>, edge: Edge, now: u64) {
+        rt.keys_mut().events.push_back((Position::Right, edge));
+        rt.tick(now).unwrap();
+    }
+
+    #[test]
+    fn with_up_a_short_select_waits_for_the_release() {
+        let mut rt = holding(SelectHold::Up);
+        press(&mut rt, Edge::Down, 10);
+        assert_eq!(sent(&rt), Vec::<Vec<String>>::new());
+        press(&mut rt, Edge::Up, 100);
+        assert_eq!(sent(&rt), vec![vec!["down".to_string()]]);
+        assert_eq!(rt.keys().flashes, vec![(Position::Right, palette::WHITE)]);
+    }
+
+    #[test]
+    fn with_up_a_held_select_sends_the_back_keys_once_and_its_release_nothing() {
+        let mut rt = holding(SelectHold::Up);
+        press(&mut rt, Edge::Down, 10);
+        rt.tick(510).unwrap();
+        assert_eq!(sent(&rt), vec![vec!["up".to_string()]]);
+        rt.tick(1_200).unwrap();
+        press(&mut rt, Edge::Up, 1_300);
+        assert_eq!(sent(&rt), vec![vec!["up".to_string()]]);
+    }
+
+    #[test]
+    fn with_none_select_acts_when_it_goes_down_and_a_hold_adds_nothing() {
+        let mut rt = holding(SelectHold::None);
+        press(&mut rt, Edge::Down, 10);
+        assert_eq!(sent(&rt), vec![vec!["down".to_string()]]);
+        rt.tick(510).unwrap();
+        press(&mut rt, Edge::Up, 600);
+        assert_eq!(sent(&rt), vec![vec!["down".to_string()]]);
+    }
+
+    #[test]
+    fn a_held_select_leaves_jumps_hold_alone() {
+        let mut rt = holding(SelectHold::Up);
+        rt.keys_mut()
+            .events
+            .extend([(Position::Left, Edge::Down), (Position::Right, Edge::Down)]);
+        rt.tick(10).unwrap();
+        rt.keys_mut().events.push_back((Position::Left, Edge::Up));
+        rt.tick(510).unwrap();
+        assert_eq!(sent(&rt), vec![vec!["up".to_string()]]);
     }
 }
 

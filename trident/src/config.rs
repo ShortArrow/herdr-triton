@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::herdr::socket_path::{config_dir, Platform};
+use crate::hold::SelectHold;
 use crate::layout::Layout;
 use crate::state::Key;
 
@@ -16,6 +17,7 @@ const FILE: &str = "config.toml";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Config {
     pub layout: Layout,
+    pub select_hold: SelectHold,
 }
 
 /// `config.toml` in `HERDR_PLUGIN_CONFIG_DIR`, or where herdr puts that
@@ -53,13 +55,31 @@ pub fn parse(text: &str) -> Result<Config, String> {
     #[derive(Deserialize)]
     struct Raw {
         layout: Option<Vec<String>>,
+        select_hold: Option<toml::Value>,
     }
     let raw: Raw = toml::from_str(text).map_err(|e| e.message().to_owned())?;
     let layout = match raw.layout {
         Some(names) => layout(&names)?,
         None => Layout::default(),
     };
-    Ok(Config { layout })
+    let select_hold = match raw.select_hold {
+        Some(value) => select_hold(&value)?,
+        None => SelectHold::default(),
+    };
+    Ok(Config {
+        layout,
+        select_hold,
+    })
+}
+
+fn select_hold(value: &toml::Value) -> Result<SelectHold, String> {
+    match value.as_str() {
+        Some("none") => Ok(SelectHold::None),
+        Some("up") => Ok(SelectHold::Up),
+        _ => Err(format!(
+            "select_hold must be \"none\" or \"up\", got {value:?}"
+        )),
+    }
 }
 
 fn layout(names: &[String]) -> Result<Layout, String> {

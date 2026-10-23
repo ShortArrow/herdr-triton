@@ -8,7 +8,7 @@ use protocol::{Edge, Led, Position, Rgb};
 
 use crate::herdr::client::{CallError, Client};
 use crate::herdr::wire::{is_supported, Request, Response};
-use crate::hold::Hold;
+use crate::hold::{Hold, SelectHold};
 use crate::layout::Layout;
 use crate::state::{palette, AgentKeys, Cmd, Conn, Key, Msg, State};
 
@@ -87,6 +87,8 @@ pub struct Runtime<H, K> {
     gone_since: Option<Millis>,
     raise: Option<Box<dyn Raise>>,
     hold: Hold,
+    select_hold: SelectHold,
+    select_held: Hold,
 }
 
 impl<H: Herdr, K: Keys> Runtime<H, K> {
@@ -105,6 +107,8 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
             gone_since: None,
             raise: None,
             hold: Hold::default(),
+            select_hold: SelectHold::default(),
+            select_held: Hold::default(),
         }
     }
 
@@ -118,6 +122,13 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
     /// only jumps.
     pub fn with_raise(mut self, raise: Box<dyn Raise>) -> Self {
         self.raise = Some(raise);
+        self
+    }
+
+    /// What holding Select does (ADR 0017); without it, Select acts when
+    /// it goes down.
+    pub fn with_select_hold(mut self, select_hold: SelectHold) -> Self {
+        self.select_hold = select_hold;
         self
     }
 
@@ -168,7 +179,12 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
     pub fn tick(&mut self, now: Millis) -> Result<(), Exit> {
         while let Some((pos, edge)) = self.keys.next_key().map_err(|_| Exit::DeviceLost)? {
             let key = self.layout.key_at(pos);
+            let held_select = key == Key::Select && self.select_hold == SelectHold::Up;
             match edge {
+                Edge::Down if held_select => {
+                    self.select_held.down(now);
+                    self.wake(now)?;
+                }
                 Edge::Down => {
                     if key == Key::Jump {
                         self.hold.down(now);
@@ -177,12 +193,24 @@ impl<H: Herdr, K: Keys> Runtime<H, K> {
                     let cmds = self.state.update(Msg::KeyDown(key));
                     self.run(cmds, now)?;
                 }
-                Edge::Up if key == Key::Jump => self.hold.up(),
+                Edge::Up if held_select => {
+                    if self.select_held.up() {
+                        let cmds = self.state.update(Msg::KeyDown(key));
+                        self.run(cmds, now)?;
+                    }
+                }
+                Edge::Up if key == Key::Jump => {
+                    self.hold.up();
+                }
                 Edge::Up => {}
             }
         }
         if self.hold.due(now) {
             self.raise_herdr(now)?;
+        }
+        if self.select_held.due(now) {
+            let cmds = self.state.update(Msg::KeyHeld(Key::Select));
+            self.run(cmds, now)?;
         }
         let due = self.last_poll.is_none_or(|t| now.saturating_sub(t) >= POLL);
         if self.phase == Phase::Active && due && self.state.conn() != Conn::Incompatible {

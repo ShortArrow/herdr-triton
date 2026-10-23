@@ -85,7 +85,8 @@ fn in_process(socket: &Path, mode: Mode, log: &mut Log) -> ExitCode {
     let clock = Instant::now();
     let mut runtime = raising(
         Runtime::new(Client::new(socket.into()), keypad, prompt_keys(), mode)
-            .with_layout(config.layout),
+            .with_layout(config.layout)
+            .with_select_hold(config.select_hold),
     );
     let ended = serve(&mut runtime, &clock, |d| {
         sleep(d);
@@ -173,7 +174,8 @@ fn listen(socket: &Path, mut port: String) -> ExitCode {
                         prompt_keys(),
                         Mode::Listen,
                     )
-                    .with_layout(config.layout),
+                    .with_layout(config.layout)
+                    .with_select_hold(config.select_hold),
                 );
                 let ended = serve(&mut runtime, &clock, wait);
                 log.line(&format!("listen: {ended:?}"));
@@ -447,7 +449,7 @@ fn prompt_keys() -> AgentKeys {
     };
     [
         ("claude".to_string(), keys(&["up"], Wrap::ByScreen)),
-        ("codex".to_string(), keys(&[], Wrap::Native)),
+        ("codex".to_string(), keys(&["up"], Wrap::Native)),
     ]
     .into()
 }

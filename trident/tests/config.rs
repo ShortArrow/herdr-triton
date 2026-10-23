@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use trident::config::{load, parse, path, Config};
 use trident::herdr::socket_path::Platform;
+use trident::hold::SelectHold;
 use trident::layout::Layout;
 use trident::state::Key::*;
 
@@ -84,6 +85,38 @@ mod parsing {
             r#"layout = "jump""#,
         ] {
             assert!(parse(text).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn select_hold_is_none_by_default() {
+        assert_eq!(parse("").unwrap().select_hold, SelectHold::None);
+    }
+
+    #[test]
+    fn select_hold_up_is_read() {
+        let config = parse(r#"select_hold = "up""#).unwrap();
+        assert_eq!(config.select_hold, SelectHold::Up);
+        assert_eq!(config.layout, Layout::default());
+    }
+
+    #[test]
+    fn select_hold_none_is_read() {
+        assert_eq!(
+            parse(r#"select_hold = "none""#).unwrap().select_hold,
+            SelectHold::None
+        );
+    }
+
+    #[test]
+    fn any_other_select_hold_is_refused_and_says_why() {
+        for text in [
+            r#"select_hold = "down""#,
+            r#"select_hold = "Up""#,
+            "select_hold = true",
+        ] {
+            let err = parse(text).unwrap_err();
+            assert!(err.contains("select_hold"), "{text}: {err}");
         }
     }
 
