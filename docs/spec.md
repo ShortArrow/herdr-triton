@@ -133,7 +133,7 @@ The LEDs take RGB, not the GRB that Waveshare's FastLED demo declares and `ws281
 |---|---|---|
 | left | Jump | Move between waiting panes; with none, between agents that have finished; with none of those either, between every agent (ADR 0011). Held for 500 ms, it also brings herdr's window to the front (ADR 0015) |
 | middle | Approve | Confirm the highlighted option of the focused prompt |
-| right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first |
+| right | Select | Move the highlight of the focused prompt to the next option, from the last back to the first. With `select_hold = "up"`, holding it for 500 ms moves the highlight up instead (ADR 0017) |
 
 To approve, press Jump, then Approve. To pick another option, such as rejecting, press Select until it is highlighted, then Approve. See ADR 0006.
 
@@ -145,16 +145,18 @@ To approve, press Jump, then Approve. To pick another option, such as rejecting,
 
 ```toml
 layout = ["jump", "approve", "select"]
+select_hold = "none"
 ```
 
 | Field | Value | Default |
 |---|---|---|
 | `layout` | The keys at the left, middle and right position: `"jump"`, `"approve"` and `"select"`, each once | `["jump", "approve", "select"]` |
+| `select_hold` | What holding Select for 500 ms does: `"none"`, nothing, and Select acts when it goes down; `"up"`, send the back keys once, and a short Select acts when it comes up (ADR 0017) | `"none"` |
 
 | Given | Then |
 |---|---|
 | No file | The defaults |
-| The file does not parse as TOML, or `layout` is not one of each name | The defaults, and a log line saying why |
+| The file does not parse as TOML, `layout` is not one of each name, or `select_hold` is neither `"none"` nor `"up"` | The defaults, and a log line saying why |
 | A field this table does not name | Ignored |
 
 `trident` reads the file once when it starts; a listener keeps the configuration it started with until `trident stop`.
@@ -216,8 +218,10 @@ A failed `agent.list` sets `conn = Disconnected` and clears `queue`, `focused`, 
 | `queue` empty, `done` not empty | Jump | as the two rows above, over `done` |
 | `queue` and `done` empty | Jump | as the first two rows, over `agents`; error flash if there are none |
 | any | Approve | Refresh. If `approvable(focused)`, `agent.send_keys` the confirm keys and add `(focused, seq)` to `sent`; otherwise error flash |
-| any | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys". Else if `lapsed_focus(focused)`, read the screen with `agent.read`: if it shows a highlighted numbered list, move the highlight as in "Prompt keys", otherwise error flash. Otherwise error flash |
+| `select_hold = "none"` | Select | Refresh. If `approvable(focused)`, move the highlight as in "Prompt keys". Else if `lapsed_focus(focused)`, read the screen with `agent.read`: if it shows a highlighted numbered list, move the highlight as in "Prompt keys", otherwise error flash. Otherwise error flash |
+| `select_hold = "up"` | Select comes up within 500 ms of going down | As the row above |
 | any | a request fails | error flash, refresh. A failed confirmation is removed from `sent` |
+| `select_hold = "up"` | Select has stayed down for 500 ms | As the short Select, sending the back keys once instead of moving to the next option. Once per press; its release does nothing |
 | any | Jump has stayed down for 500 ms | `trident raise`; success flash if it raised a window, otherwise error flash. Once per press |
 
 Jump does not reorder `queue`. When `queue` has one entry and it is focused, Jump focuses it again.
@@ -242,7 +246,7 @@ Keyed by herdr's agent id. They are built in; "Configuration" does not carry the
 | Agent id | Confirm keys (default) | Select keys (default) | List wraps | Back keys (default) |
 |---|---|---|---|---|
 | `claude` | `["enter"]` | `["down"]` | no | `["up"]` |
-| `codex` | `["enter"]` | `["down"]` | yes | |
+| `codex` | `["enter"]` | `["down"]` | yes | `["up"]` |
 
 Codex's list moves from its last option to its first on `down` (openai/codex `1cc7e23`, `scroll_state.rs`, `move_down_wrap`); Claude Code's stops at the last. For an agent whose list does not wrap, Select reads the pane's visible screen with `agent.read` and finds the numbered options and the highlighted one (ADR 0010):
 
@@ -366,7 +370,7 @@ The plugin requires a herdr with plugin support (`min_herdr_version` 0.9.1, the 
 ## Unspecified
 
 - Agents on other machines that a herdr client shows alongside local ones (`herdr machine`). `trident` reads only the local server's API, and neither server's API says which machine the client has in focus
-- Long-press actions other than Jump's
+- Long-press actions other than Jump's and Select's
 - Which window `trident raise` brings forward when several herdr clients run, or when the terminal process has several windows
 - How `done` is shown
 - A minimum time a pane must stay approvable before Approve acts, so that a press already on its way does not answer a question that just appeared

@@ -32,7 +32,7 @@ herdr plugin config-dir shortarrow.herdr-triton
 layout = ["select", "jump", "approve"]   # left, middle, right
 ```
 
-Name each of `jump`, `approve` and `select` once. Then run `.plugin/bin/trident stop`; herdr starts `trident` with the new layout at the next agent status change. Each key takes its LED along. A file that cannot be used leaves the default layout, and `trident.log` says why.
+Name each of `jump`, `approve` and `select` once. Add `select_hold = "up"` to make a half-second hold of Select move the highlight up; a short Select then acts when you release it. Then run `.plugin/bin/trident stop`; herdr starts `trident` with the new layout at the next agent status change. Each key takes its LED along. A file that cannot be used leaves the default layout, and `trident.log` says why.
 
 ## Without the plugin
 

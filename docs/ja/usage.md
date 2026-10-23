@@ -35,6 +35,7 @@ layout = ["select", "jump", "approve"]   # 左、中、右
 ```
 
 `jump`、`approve`、`select` を1回ずつ書く。
+`select_hold = "up"` を足すと、Select を 0.5 秒押し続けたときにハイライトが上へ動く。そのとき短い Select は、離したときに動く。
 そのあと `.plugin/bin/trident stop` を実行すると、次にエージェントのステータスが変わったときに、新しい配置で herdr が trident を起動する。
 キーは自分の LED を連れて移る。
 使えないファイルなら既定の配置のまま動き、理由は `trident.log` に書かれる。
