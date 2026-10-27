@@ -3,7 +3,7 @@
 [English](../../adr/0015-hold-jump-to-raise-herdr.md) | 日本語
 
 - Status: Accepted
-- Base: [`8c3d6b6`](https://github.com/ShortArrow/herdr-triton/commit/8c3d6b6eb7b13146cdd34f2054f4038ebe0b334b)
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
@@ -12,15 +12,15 @@
 入力が要るエージェントでは事情が違う。Jump のあと、端末を前面に出すためにマウスに持ち替え、またキーボードに戻ることになり、キーパッドが手間を減らすどころか増やしてしまう。
 
 Windows は、バックグラウンドのプロセスが `SetForegroundWindow` だけで前面を取ることを許さない。
-`work/` の試作で、listener と同じくコンソールを持たない切り離したプロセスから呼ぶと、Windows は拒否した。
-先に `AttachThreadInput` で前面のウィンドウの入力スレッドにつなぐと、最小化した状態からも含めて、WezTerm を Chrome の前に出せた。
-WezTerm の中の herdr のコンソールは持ち主のウィンドウを持たない疑似コンソールなので、herdr のプロセスから親をたどり、表示中のトップレベルのウィンドウを持つ最初の祖先、`wezterm-gui` からウィンドウを見つけた。
+listener と同じくコンソールを持たない切り離したプロセスから呼ぶと、拒否される。
+先に `AttachThreadInput` で前面のウィンドウの入力スレッドにつなぐと、最小化した状態からも含めて、WezTerm を Chrome の前に出せる。
+WezTerm の中の herdr のコンソールは持ち主のウィンドウを持たない疑似コンソールである。ウィンドウは、herdr のプロセスの祖先のうち、表示中のトップレベルのウィンドウを持つ最初のもの、`wezterm-gui` のウィンドウになる。
 
-`KEY:EVENt?` は `Down` だけでなく `Up` も返していて、trident は `Down` で動き、`Up` は使っていなかった。
+`KEY:EVENt?` は `Down` だけでなく `Up` も返す。
 
 ## Decision
 
-- Jump を 500 ms 押し続けると、herdr を表示しているウィンドウを前面に出す。Jump は今まで通り `Down` で動くので、短く押したときの動きは変わらず、離すのを待つことも無い
+- Jump を 500 ms 押し続けると、herdr を表示しているウィンドウを前面に出す。Jump は `Down` で動くので、短く押したときは移動だけで、離すのを待つことも無い
 - ウィンドウを前面に出すのは、1回の長押しにつき1回、500 ms がたったとき。出せたら Jump の LED が白く、出せなかったら赤く光る
 - listener は自分ではウィンドウを前面に出さない。`trident find-port` と同じく、`trident raise` を `CREATE_NO_WINDOW` で起動し、`user32.dll` を読み込むのはその短命なプロセスだけにする
 - `trident raise` は herdr のクライアントのプロセスから祖先をたどり、持ち主の無い表示中のトップレベルのウィンドウを持つ最初の祖先を見つける。そのウィンドウが最小化されていれば元に戻し、前面のウィンドウのスレッドに `AttachThreadInput` でつないでから前面に出す
@@ -30,7 +30,6 @@ WezTerm の中の herdr のコンソールは持ち主のウィンドウを持�
 - 長押しすると、全画面のゲームから前面を奪うことがある。長押しはそれを求める操作である
 - herdr のクライアントが複数あるとき、または1つの端末のプロセスがウィンドウを複数持つとき、どのウィンドウを出すかは未規定
 - listener のメモリは変わらない
-- Jump が入力を要するエージェントに飛んだときに自動で前面に出す仕組みは、同じコマンドの上にあとから足せる
 
 ## Alternatives
 

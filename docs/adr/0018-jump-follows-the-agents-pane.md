@@ -3,11 +3,11 @@
 English | [日本語](../ja/adr/0018-jump-follows-the-agents-pane.md)
 
 - Status: Accepted
-- Base: [`309db6e`](https://github.com/ShortArrow/herdr-triton/commit/309db6ecf4e15a358ded32282488ad4812a79b5d)
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
-Jump cycled waiting agents in the order `trident` first saw them blocked, and finished or other agents in `agent.list` order (ADR 0011). herdr's agents pane sorts its list in one of two modes, `grouped` and `priority`, which its header toggles. In `priority` mode the list put the newest prompt on top, while Jump went to the oldest first, so Jump seemed to skip around the list.
+Jump picks a tier, waiting, finished or every agent, and moves to the next agent within it (ADR 0011). The user sees the agents in herdr's agents pane, which sorts its list in one of two modes, `grouped` and `priority`, toggled by its header. A Jump whose "next" follows any other order seems to skip around the list; in `priority` mode the newest prompt is on top.
 
 herdr 0.9.3 (`src/client/shell/agent_sidebar.rs`) orders the pane as follows:
 
@@ -18,10 +18,10 @@ No API reports the mode. The client keeps it in its own preferences file, `<herd
 
 ## Decision
 
-- Jump keeps ADR 0011's tiers, and within a tier goes to the next agent in the pane's order instead of in `queue` or `agent.list` order
+- Within a tier, Jump goes to the next agent in the pane's order
 - `trident` reads the mode each time Jump goes down: from the client's preferences file, then from herdr's `config.toml`, and otherwise takes `grouped`
 - A file that is missing, unreadable, or holds a value other than `spaces`, `workspaces` or `priority` counts as not saying, and the next source decides
-- `queue` no longer keeps an order, since nothing else read it
+- `queue` keeps no order
 
 ## Consequences
 
@@ -33,6 +33,6 @@ No API reports the mode. The client keeps it in its own preferences file, `<herd
 
 ## Alternatives
 
+- **The order in which `trident` first saw each agent blocked, oldest first**: the oldest prompt comes first, but Jump's order differs from the list the user reads
 - **A `jump_order` field in `trident`'s `config.toml`**: no dependence on herdr's files, but the field has to be changed by hand whenever the pane's header is clicked, and the two drift apart
-- **Keep the oldest waiting prompt first**: Jump would keep its own order, which is the confusion this record removes
 - **Ask herdr for an API that reports the order**: upstream work, which this project does not request

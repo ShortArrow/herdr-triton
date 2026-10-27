@@ -3,7 +3,7 @@
 English | [日本語](../ja/adr/0001-serial-bridge-architecture.md)
 
 - Status: Accepted
-- Base: [`7783308`](https://github.com/ShortArrow/herdr-triton/commit/7783308fd7530214421c919a252a97b35b80e154)
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
@@ -11,14 +11,14 @@ Three keys operate herdr agents, and the LED under each key shows herdr's state.
 
 ## Decision
 
-The device sends key down and key up over USB CDC serial and receives LED commands, and does nothing else. A resident host process, `bridge`, connects to herdr's Socket API. It holds the state, turns key input into herdr requests and decides what the LEDs show.
+The device reports key presses and releases and sets its LEDs on command, over USB CDC serial, and does nothing else. A resident host process, `trident`, connects to herdr's Socket API. It holds the state, turns key input into herdr requests and decides what the LEDs show.
 
 ## Consequences
 
 - A key press is never typed into whichever window has focus
-- Behaviour changes are made in `bridge`; the firmware is reflashed less often
-- The behaviour can be tested on the host as a pure state transition in `bridge`
-- Without `bridge` running, the device does nothing
+- Behaviour changes are made in `trident`; the firmware is reflashed less often
+- The behaviour can be tested on the host as a pure state transition in `trident`
+- Without `trident` running, the device does nothing
 
 ## Alternatives
 

@@ -3,19 +3,20 @@
 [English](../../adr/0010-select-wraps-by-reading-the-screen.md) | 日本語
 
 - Status: Accepted
-- Base: [`d6b4e57`](https://github.com/ShortArrow/herdr-triton/commit/d6b4e5725bc5a288c24317ef0fe579b325b6d5ec)
-- Amends: 0006（Select が送るキー）
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
 Select はプロンプトのハイライトを動かすために `down` を送る（ADR 0006）。
 Codex のリストは最後の選択肢から最初へ折り返すが、Claude Code のリストは最後で止まる。
-そのため選択肢が 6 個あると、キーパッドから 6 番目までは進めるが、1 番目には戻れない。
-ハイライトの位置を herdr は知らないが、pane の画面には表示されている。
-Claude Code はハイライト中の選択肢に `❯` を付け、`herdr_probe` のために `prompt_screen` がすでにそれを読んでいる。
+そのため `down` だけでは、選択肢が 6 個あると 6 番目までは進めるが、1 番目には戻れない。
+ハイライトの位置を herdr は報告しないが、pane の画面には表示されている。
+Claude Code はハイライト中の選択肢に `❯` を付ける。
 
-ADR 0003 では、承認してよいかの判断に `pane.read` を使う案を採らなかった。
+Approve が効くかどうかは画面に左右されない（ADR 0003）。
 画面の判定が herdr の検出と二重になり、読み違えれば別の選択肢を確定しかねないためである。
+ハイライトの移動先にはその危険が無い。
+移動を誤っても、もう一度押せば戻せる。
 
 ## Decision
 
@@ -28,8 +29,8 @@ ADR 0003 では、承認してよいかの判断に `pane.read` を使う案を�
 
 - どちらのエージェントでも、Select で全部の選択肢を巡回できる
 - 折り返さないエージェントでの Select は、herdr へのリクエストが1回増える
-- Claude Code のリストの描き方が変わっても、Select が折り返さなくなるだけで、誤った動きはしない。読めなかったときは ADR 0006 どおり `down` を送るだけになる
-- 画面が決めるのはハイライトの移動先だけである。Approve はハイライト中の選択肢を確定し、Approve が効くかどうかは引き続き herdr の状態だけで決まる（ADR 0003）
+- Claude Code のリストの描き方が変わっても、Select が折り返さなくなるだけで、誤った動きはしない。読めなかったときは `down` を送るだけになる
+- 画面が決めるのはハイライトの移動先だけである。Approve はハイライト中の選択肢を確定し、Approve が効くかどうかは herdr の状態だけで決まる（ADR 0003）
 
 ## Alternatives
 

@@ -3,17 +3,16 @@
 [English](../../adr/0016-select-follows-a-lapsed-prompt.md) | 日本語
 
 - Status: Accepted
-- Base: [`ff63da2`](https://github.com/ShortArrow/herdr-triton/commit/ff63da21f5cedcf21e6b053323b634752b05b905)
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
 Claude Code の質問プロンプトは、選択肢の後に「Type something.」を、区切り線の下に「Chat about this」を並べる。
-Select でハイライトを「Type something.」に動かすと、プロンプトは画面に残ったまま、herdr 0.9.3 はその pane を `blocked` ではなく `idle` と報告した。
-`trident` はその pane を `queue` から外し、`approvable` が成り立たなくなり、Select も Approve も赤く光るだけになった。
-キーパッドではハイライトをその選択肢から動かせず、「Chat about this」へも元の選択肢へも行けなかった。キーボードの矢印キーでは動いた。
+ハイライトが「Type something.」にあると、プロンプトは画面に残ったまま、herdr 0.9.3 はその pane を `blocked` ではなく `idle` と報告する。
+`blocked` でない pane は `queue` に無く、承認可能でもない。承認可能な pane にだけ効くキーパッドでは、ハイライトをその選択肢から動かせず、「Chat about this」へも元の選択肢へも行けない。キーボードの矢印キーでは動く。
 
-ADR 0003 で、Approve で確定してよいかは画面に依らないと決めた。
-Select はすでに、ハイライトをどこへ動かすかを画面を読んで決めている（ADR 0010）。
+Approve で確定してよいかは画面に依らない（ADR 0003）。
+Select は、ハイライトをどこへ動かすかを画面を読んで決める（ADR 0010）。
 
 ## Decision
 
@@ -23,8 +22,8 @@ Select はすでに、ハイライトをどこへ動かすかを画面を読ん�
 
 ## Consequences
 
-- Select で「Type something.」からハイライトを外し、「Chat about this」へも元の選択肢へも動かせる。herdr が再び `blocked` と報告すると、その pane は新しい `state_change_seq` で `queue` の末尾に戻る
-- 「Type something.」で Approve を押すと、これまでどおり赤く光る。その選択肢の確定には入力が要り、キーパッドでは入力しない
+- Select で「Type something.」からハイライトを外し、「Chat about this」へも元の選択肢へも動かせる。herdr が再び `blocked` と報告すると、その pane は新しい `state_change_seq` で `queue` に戻る
+- 「Type something.」で Approve を押すと赤く光る。その選択肢の確定には入力が要り、キーパッドでは入力しない
 - idle のエージェントに矢印キーが届くのは、その画面にハイライト付きの番号リストがある間だけ。エージェントが自分の出力に `❯` と番号を付けたリストを出した場合も、それに当たる
 
 ## Alternatives

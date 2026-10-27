@@ -2,31 +2,22 @@
 
 English | [日本語](../ja/adr/README.md)
 
-Each record is one decision, numbered in the order it was made and frozen once accepted. A later record that changes it says so in its header, and the earlier record links forward to it.
-
-## Header
-
-```markdown
-# NNNN. <the decision, as a sentence>
-
-English | [日本語](../ja/adr/NNNN-<slug>.md)
-
-- Status: Accepted
-- Amended by: [MMMM](MMMM-<slug>.md)
-- Base: [`abc1234`](https://github.com/ShortArrow/herdr-triton/commit/<full hash>)
-- Supersedes: KKKK
-- Amends: KKKK (what it changes)
-```
-
-| Field | Meaning |
-|---|---|
-| Status | `Accepted`, or `Superseded by [MMMM](…)` |
-| Amended by | Later records that change part of this one; omitted when none |
-| Base | The commit the decision was made against: the parent of the commit that adds the record. It links to that commit on GitHub, so the code the record talks about is one click away |
-| Supersedes, Amends | Earlier records this one replaces or changes; omitted when none |
-
-The Japanese record of the same number carries the same header, with the field names in English.
-
-## Body
-
-`## Context`, `## Decision`, `## Consequences` and `## Alternatives`, in that order.
+- [0000. Each record states the decision in force, and is rewritten when it changes](0000-records-state-the-decision-in-force.md)
+- [0001. Connect the keyboard to a host bridge over serial, not as HID](0001-serial-bridge-architecture.md)
+- [0002. Write the firmware and trident in Rust, and flash with drooling](0002-rust-with-drooling.md)
+- [0003. Send approval only to the focused pane, and only when it is blocked](0003-approve-only-focused-blocked-pane.md)
+- [0004. Poll agent.list instead of subscribing to events](0004-poll-agent-list.md)
+- [0005. Frame postcard messages with COBS over CDC-ACM](0005-postcard-cobs-over-cdc-acm.md) (Withdrawn)
+- [0006. Jump moves between agents, Select moves the highlight, Approve confirms it](0006-jump-select-approve.md)
+- [0007. One trident serves one herdr session](0007-one-session-per-bridge.md)
+- [0008. A herdr plugin starts the bridge as a listener that exits when idle](0008-listener-started-by-plugin-hooks.md) (Withdrawn)
+- [0009. Speak SCPI-style text over CDC-ACM](0009-scpi-text-protocol.md)
+- [0010. Select wraps to the first option by reading the screen](0010-select-wraps-by-reading-the-screen.md)
+- [0011. Jump falls back to finished agents, then to every agent](0011-jump-falls-back-to-done-then-every-agent.md)
+- [0012. A resident listener that stays quiet while nothing waits](0012-resident-listener-quiet-when-idle.md)
+- [0013. The key layout is set in the plugin's configuration directory](0013-key-layout-in-plugin-config.md)
+- [0014. The host program is named trident](0014-host-program-named-trident.md)
+- [0015. Holding Jump brings herdr's window to the front](0015-hold-jump-to-raise-herdr.md)
+- [0016. Select keeps working on a prompt herdr stopped reporting as blocked](0016-select-follows-a-lapsed-prompt.md)
+- [0017. Holding Select moves the highlight up](0017-hold-select-to-move-up.md)
+- [0018. Jump follows the order of herdr's agents pane](0018-jump-follows-the-agents-pane.md)

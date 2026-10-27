@@ -3,13 +3,13 @@
 [English](../../adr/0018-jump-follows-the-agents-pane.md) | 日本語
 
 - Status: Accepted
-- Base: [`309db6e`](https://github.com/ShortArrow/herdr-triton/commit/309db6ecf4e15a358ded32282488ad4812a79b5d)
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
-Jump は、承認待ちのエージェントを trident が最初に blocked と見た順に、作業を終えたエージェントとそれ以外を `agent.list` の順に巡回していた（ADR 0011）。
-herdr の agents ペインは、見出しで切り替える `grouped` と `priority` の2つのモードで一覧を並べる。
-`priority` モードでは一覧の一番上に一番新しいプロンプトが来るのに、Jump は一番古いものへ先に移ったので、一覧の上を飛び回るように見えた。
+Jump は、承認待ち、作業を終えたエージェント、全エージェントのうち1つの段を選び、その中で次のエージェントへ移る（ADR 0011）。
+ユーザーが見ているのは herdr の agents ペインで、ペインは見出しで切り替える `grouped` と `priority` の2つのモードで一覧を並べる。
+Jump の「次」がほかの順に従うと、一覧の上を飛び回るように見える。`priority` モードでは一番新しいプロンプトが一番上に来る。
 
 herdr 0.9.3（`src/client/shell/agent_sidebar.rs`）はペインを次のように並べる。
 
@@ -23,10 +23,10 @@ herdr 0.9.3（`src/client/shell/agent_sidebar.rs`）はペインを次のよう�
 
 ## Decision
 
-- Jump は ADR 0011 の段階を保ち、段階の中では `queue` や `agent.list` の順ではなく、ペインの順で次のエージェントへ移る
+- 段の中では、Jump はペインの順で次のエージェントへ移る
 - trident は Jump が押されるたびにモードを読む。クライアントの設定ファイル、次に herdr の `config.toml` の順で探し、どちらにも無ければ `grouped` とする
 - ファイルが無い、読めない、または `spaces`、`workspaces`、`priority` 以外の値を持つときは、そのファイルは何も言っていないものとして次で決める
-- 順序を読むものがほかに無くなったので、`queue` は順序を持たない
+- `queue` は順序を持たない
 
 ## Consequences
 
@@ -38,6 +38,6 @@ herdr 0.9.3（`src/client/shell/agent_sidebar.rs`）はペインを次のよう�
 
 ## Alternatives
 
+- **trident が各エージェントを最初に blocked と見た順、古いものから**: 一番古いプロンプトが先に来るが、Jump の順がユーザーの読む一覧と食い違う
 - **trident の `config.toml` に `jump_order` を置く**: herdr のファイルに頼らずに済むが、ペインの見出しをクリックするたびに手で書き換える必要があり、2つがずれていく
-- **一番長く待っているプロンプトを先にしたままにする**: Jump が独自の順を持ち続け、この記録が取り除く混乱が残る
 - **並び順を報告する API を herdr に求める**: upstream の作業になり、このプロジェクトでは依頼しない

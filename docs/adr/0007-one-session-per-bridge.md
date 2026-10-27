@@ -1,9 +1,9 @@
-# 0007. One bridge serves one herdr session
+# 0007. One trident serves one herdr session
 
 English | [日本語](../ja/adr/0007-one-session-per-bridge.md)
 
 - Status: Accepted
-- Base: [`ff9c6e8`](https://github.com/ShortArrow/herdr-triton/commit/ff9c6e8c350da6efba60c53874620ae52486495f)
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
@@ -11,13 +11,13 @@ Each herdr session is a separate server with its own socket, and each attached t
 
 ## Decision
 
-A `bridge` connects to one session. `--session <name>` picks it and wins over `HERDR_SOCKET_PATH`; without it, the socket is resolved as herdr resolves it.
+A `trident` connects to one session. `--session <name>` picks it and wins over `HERDR_SOCKET_PATH`; without it, the socket is resolved as herdr resolves it.
 
 ## Consequences
 
 - The queue, Jump and the LEDs cover one session only
-- Using the keypad with another session means restarting `bridge` with another `--session`
-- A `bridge` started inside a herdr pane without `--session` serves that pane's session, through the pane's `HERDR_SOCKET_PATH`
+- Using the keypad with another session means stopping `trident` and starting it for that session
+- A `trident` started inside a herdr pane without `--session` serves that pane's session, through the pane's `HERDR_SOCKET_PATH`
 
 ## Alternatives
 

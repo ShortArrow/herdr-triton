@@ -1,9 +1,9 @@
-# 0007. 1つの bridge は herdr のセッションを1つだけ受け持つ
+# 0007. 1つの trident は herdr のセッションを1つだけ受け持つ
 
 [English](../../adr/0007-one-session-per-bridge.md) | 日本語
 
 - Status: Accepted
-- Base: [`ff9c6e8`](https://github.com/ShortArrow/herdr-triton/commit/ff9c6e8c350da6efba60c53874620ae52486495f)
+- Base: [`53063f0`](https://github.com/ShortArrow/herdr-triton/commit/53063f029d0e14e019ac27c4d803a87e51d2898b)
 
 ## Context
 
@@ -14,15 +14,15 @@ herdr のセッションはそれぞれ別のサーバーで、ソケットも�
 
 ## Decision
 
-`bridge` は1つのセッションにつなぐ。
+`trident` は1つのセッションにつなぐ。
 `--session <name>` でセッションを選び、`HERDR_SOCKET_PATH` より優先する。
 指定が無ければ、herdr と同じ規則でソケットを決める。
 
 ## Consequences
 
 - キュー、Jump、LED が扱うのは1つのセッションだけになる
-- 別のセッションでキーパッドを使うには、`--session` を変えて `bridge` を起動し直す
-- herdr の pane の中で `--session` を付けずに起動した `bridge` は、その pane の `HERDR_SOCKET_PATH` を通じて、その pane のセッションを受け持つ
+- 別のセッションでキーパッドを使うには、`trident` を止めて、そのセッション向けに起動し直す
+- herdr の pane の中で `--session` を付けずに起動した `trident` は、その pane の `HERDR_SOCKET_PATH` を通じて、その pane のセッションを受け持つ
 
 ## Alternatives
 
