@@ -3,7 +3,7 @@
 English | [日本語](../ja/adr/0000-records-state-the-decision-in-force.md)
 
 - Status: Accepted
-- Base: [`5d65935`](https://github.com/ShortArrow/herdr-triton/commit/5d65935e1803cf9c5ed68d50c5518b6e57e71089)
+- Base: [`5d97a35`](https://github.com/ShortArrow/herdr-triton/commit/5d97a35eba0f317d48115273238637605be7a7be)
 
 ## Context
 
@@ -15,7 +15,7 @@ A record is read by someone who wants to know why the code is the way it is, and
 - When the decision changes, its record is rewritten in place, whatever its status, so that it states the decision in force. The design it replaces moves to `## Alternatives`, with the reason it was dropped. A change that is a decision of its own gets a new record
 - The body is in the present tense. `## Context` states the forces as they are and where they pull against each other; `## Alternatives` states each refusal as one that holds while its reason does, and loses it when the reason goes
 - A judgment that only its moment explains, made under a constraint that has since gone and touching no standing decision, is not a record. It goes in the message of the commit it decided
-- A record refers only to records it depends on, never to those that build on it, so references never form a cycle
+- A record refers only to records it depends on, never to those that build on it, so references never form a cycle. A `Withdrawn` record is the one exception: it names the record that now holds its subject, and that record does not refer back to it
 - A record whose decision is no longer in force, and whose subject no other record takes over, is `Withdrawn`. One whose subject another record now holds is also `Withdrawn`, and says which record that is; that record's `## Alternatives` carries the withdrawn design
 - The English record and the Japanese record of the same number say the same thing and are changed in the same commit
 
