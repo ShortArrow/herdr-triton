@@ -3,11 +3,11 @@
 English | [日本語](../ja/adr/0000-records-state-the-decision-in-force.md)
 
 - Status: Accepted
-- Base: [`5d97a35`](https://github.com/ShortArrow/herdr-triton/commit/5d97a35eba0f317d48115273238637605be7a7be)
+- Base: [`c4c0078`](https://github.com/ShortArrow/herdr-triton/commit/c4c0078e2ba6e6050ad797c2cc32328774e81d9e)
 
 ## Context
 
-A record is read by someone who wants to know why the code is the way it is, and who has to decide whether that reason still holds. A decision that holds is only useful in the form it holds now. When later records each change part of an earlier one, the decision in force is spread over a chain, and the reader has to follow every link and apply the changes in order to recover it. git already keeps every earlier text and when it was written.
+A record is read by someone who wants to know why the code is the way it is, and who has to decide whether that reason still holds. A decision that holds is only useful in the form it holds now. When later records each change part of an earlier one, the decision in force is spread over a chain, and the reader has to follow every link and apply the changes in order to recover it. git already keeps every earlier text and when it was written. Against that, a rewritten record no longer reads as it did when a commit named it, and a commit that names a record by a title since changed no longer finds it by that title. The file's path keeps its slug, and `git log -p` shows the text the commit saw.
 
 ## Decision
 

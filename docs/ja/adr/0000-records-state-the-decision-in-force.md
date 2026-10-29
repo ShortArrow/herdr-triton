@@ -3,7 +3,7 @@
 [English](../../adr/0000-records-state-the-decision-in-force.md) | 日本語
 
 - Status: Accepted
-- Base: [`5d97a35`](https://github.com/ShortArrow/herdr-triton/commit/5d97a35eba0f317d48115273238637605be7a7be)
+- Base: [`c4c0078`](https://github.com/ShortArrow/herdr-triton/commit/c4c0078e2ba6e6050ad797c2cc32328774e81d9e)
 
 ## Context
 
@@ -12,6 +12,8 @@
 あとの記録が前の記録の一部をそれぞれ変えていくと、今有効な判断は記録の連なりに散らばる。
 読む人はすべてのリンクをたどり、変更を順に当てはめて組み立て直すことになる。
 以前の文面とそれを書いた時期は、git がすでにすべて持っている。
+一方で、書き換えた記録は、それを名指したコミットの時点の文面ではなくなる。表題が変われば、コミットにある表題で探しても見つからない。
+ファイルのパスは slug を保ち、そのコミットが見た文面は `git log -p` で見られる。
 
 ## Decision
 
