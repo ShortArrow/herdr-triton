@@ -282,14 +282,14 @@ Both agents show their approval prompts as a list whose highlight moves with the
 
 The steady LED output is a function of `(conn, device, len(queue), len(done), approvable(focused))`. A one-shot flash for a key press is drawn on top.
 
-| State | Jump | Approve | Select |
-|---|---|---|---|
-| `Disconnected` | red, slow blink | red, slow blink | red, slow blink |
-| `Incompatible` | red, solid | red, solid | red, solid |
-| `queue` empty, `done` not empty | green, breathing | off | off |
-| `queue` and `done` empty | white, breathing (Jump cycles every agent) | off | off |
-| `queue` has 1 | orange, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off |
-| `queue` has 2 or more | reddish orange, breathing | as above | as above |
+| State | Jump | Approve | Select | Looks like |
+|---|---|---|---|---|
+| `Disconnected` | red, slow blink | red, slow blink | red, slow blink | ![All three blink red](assets/led/disconnected.svg) |
+| `Incompatible` | red, solid | red, solid | red, solid | ![All three solid red](assets/led/incompatible.svg) |
+| `queue` empty, `done` not empty | green, breathing | off | off | ![Jump breathes green](assets/led/done.svg) |
+| `queue` and `done` empty | white, breathing (Jump cycles every agent) | off | off | ![Jump breathes white](assets/led/idle.svg) |
+| `queue` has 1 | orange, breathing | green if `approvable(focused)`, otherwise off | blue if `approvable(focused)`, otherwise off | ![Jump breathes orange](assets/led/one-waiting.svg) ![Jump breathes orange, Approve green, Select blue](assets/led/one-waiting-approvable.svg) |
+| `queue` has 2 or more | reddish orange, breathing | as above | as above | ![Jump breathes reddish orange, Approve green, Select blue](assets/led/many-waiting-approvable.svg) |
 
 Flashes:
 

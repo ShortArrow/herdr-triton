@@ -328,14 +328,14 @@ Codex は `y` も受け付けるが、`y` はハイライトの位置に関係�
 常時の表示は `(conn, device, len(queue), len(done), approvable(focused))` の関数で決まる。
 キー押下に対する1回きりの点滅を、その上に重ねる。
 
-| 状態 | Jump | Approve | Select |
-|---|---|---|---|
-| `Disconnected` | 赤・遅い点滅 | 赤・遅い点滅 | 赤・遅い点滅 |
-| `Incompatible` | 赤・点灯 | 赤・点灯 | 赤・点灯 |
-| `queue` が空で `done` が空でない | 緑・呼吸 | 消灯 | 消灯 |
-| `queue` も `done` も空 | 白・呼吸（Jump で全エージェントを巡回できる） | 消灯 | 消灯 |
-| `queue` が1件 | オレンジ・呼吸 | `approvable(focused)` なら緑、それ以外は消灯 | `approvable(focused)` なら青、それ以外は消灯 |
-| `queue` が2件以上 | 赤寄りのオレンジ・呼吸 | 同上 | 同上 |
+| 状態 | Jump | Approve | Select | 見た目 |
+|---|---|---|---|---|
+| `Disconnected` | 赤・遅い点滅 | 赤・遅い点滅 | 赤・遅い点滅 | ![3つとも赤で点滅](../assets/led/disconnected.svg) |
+| `Incompatible` | 赤・点灯 | 赤・点灯 | 赤・点灯 | ![3つとも赤で点灯](../assets/led/incompatible.svg) |
+| `queue` が空で `done` が空でない | 緑・呼吸 | 消灯 | 消灯 | ![Jump が緑で呼吸](../assets/led/done.svg) |
+| `queue` も `done` も空 | 白・呼吸（Jump で全エージェントを巡回できる） | 消灯 | 消灯 | ![Jump が白で呼吸](../assets/led/idle.svg) |
+| `queue` が1件 | オレンジ・呼吸 | `approvable(focused)` なら緑、それ以外は消灯 | `approvable(focused)` なら青、それ以外は消灯 | ![Jump がオレンジで呼吸](../assets/led/one-waiting.svg) ![Jump がオレンジで呼吸し、Approve が緑、Select が青](../assets/led/one-waiting-approvable.svg) |
+| `queue` が2件以上 | 赤寄りのオレンジ・呼吸 | 同上 | 同上 | ![Jump が赤寄りのオレンジで呼吸し、Approve が緑、Select が青](../assets/led/many-waiting-approvable.svg) |
 
 点滅:
 

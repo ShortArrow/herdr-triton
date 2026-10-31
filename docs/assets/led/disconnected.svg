@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="110" viewBox="0 0 250 110">
+  <rect x="10" y="10" width="70" height="70" rx="10" fill="#2B2B2B"/>
+  <circle cx="45" cy="45" r="18" fill="#4A4A4A"/>
+  <circle cx="45" cy="45" r="18" fill="#FF0000"><animate attributeName="fill-opacity" values="1;0" keyTimes="0;0.5" calcMode="discrete" dur="1s" repeatCount="indefinite"/></circle>
+  <text x="45" y="100" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#888888">Jump</text>
+  <rect x="90" y="10" width="70" height="70" rx="10" fill="#2B2B2B"/>
+  <circle cx="125" cy="45" r="18" fill="#4A4A4A"/>
+  <circle cx="125" cy="45" r="18" fill="#FF0000"><animate attributeName="fill-opacity" values="1;0" keyTimes="0;0.5" calcMode="discrete" dur="1s" repeatCount="indefinite"/></circle>
+  <text x="125" y="100" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#888888">Approve</text>
+  <rect x="170" y="10" width="70" height="70" rx="10" fill="#2B2B2B"/>
+  <circle cx="205" cy="45" r="18" fill="#4A4A4A"/>
+  <circle cx="205" cy="45" r="18" fill="#FF0000"><animate attributeName="fill-opacity" values="1;0" keyTimes="0;0.5" calcMode="discrete" dur="1s" repeatCount="indefinite"/></circle>
+  <text x="205" y="100" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#888888">Select</text>
+</svg>
